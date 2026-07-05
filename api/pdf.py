@@ -9,7 +9,8 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "reports")
+DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
+OUTPUT_DIR = os.path.join(DATA_DIR, "reports")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 ACCENT = colors.HexColor("#6c63ff")

@@ -19,7 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH = "poprobui.db"
+DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "poprobui.db")
 
 
 # ── DB init ────────────────────────────────────────────────────────────────
