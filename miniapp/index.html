@@ -28,6 +28,18 @@
     }
   }
 
+  @media print {
+    body { background: #fff !important; color: #000 !important; }
+    .screen { display: none !important; }
+    #screen-results { display: block !important; padding: 20px !important; }
+    .btn-group { display: none !important; }
+    .print-header { display: block !important; }
+    .bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+  .print-header { display: none; text-align: center; margin-bottom: 20px; }
+  .print-header h2 { font-size: 22px; color: #6c63ff; }
+  .print-header p { color: #888; font-size: 13px; margin-top: 4px; }
+
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Arial, sans-serif;
          min-height: 100dvh; overflow-x: hidden; }
@@ -189,6 +201,10 @@
 
 <!-- ── Screen: Results ─────────────────────────────────────────────────── -->
 <div id="screen-results" class="screen">
+  <div class="print-header">
+    <h2>Попробуй — профориентация</h2>
+    <p>Результаты тестирования · @poprobui_bot</p>
+  </div>
   <div class="results-header">
     <div class="results-emoji">🎯</div>
     <div class="results-title">Твой профиль готов!</div>
@@ -495,12 +511,7 @@ function renderResults(data) {
 }
 
 async function downloadPDF() {
-  if (!resultId) {
-    alert("Для скачивания PDF нужно авторизоваться через Telegram");
-    return;
-  }
-  const url = `${API_URL}/pdf/${resultId}?tg_user_id=${TG_USER_ID}`;
-  window.open(url, "_blank");
+  window.print();
 }
 
 // ── Local scoring fallback (offline) ────────────────────────────────────
