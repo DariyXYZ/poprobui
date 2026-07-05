@@ -1,14 +1,20 @@
 import asyncio
+import json
 import os
+import sys
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, CallbackQuery,
     InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardMarkup, KeyboardButton,
     WebAppInfo, LabeledPrice, PreCheckoutQuery,
+    FSInputFile,
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.storage.memory import MemoryStorage
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api'))
 
 load_dotenv()
 
@@ -24,31 +30,17 @@ dp = Dispatcher(storage=MemoryStorage())
 
 def kb_main() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🧭 Пройти тест",
-                web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=test")
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="📊 Мои результаты",
-                web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results")
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="💳 Пополнить кошелёк",
-                callback_data="topup"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="ℹ️ Как это работает",
-                callback_data="how_it_works"
-            )
-        ],
+        [InlineKeyboardButton(text="📊 Мои результаты",
+                              web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results"))],
+        [InlineKeyboardButton(text="💳 Пополнить кошелёк", callback_data="topup")],
+        [InlineKeyboardButton(text="ℹ️ Как это работает",  callback_data="how_it_works")],
     ])
+
+def kb_test() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=MINIAPP_URL))]],
+        resize_keyboard=True,
+    )
 
 
 def kb_topup() -> InlineKeyboardMarkup:
@@ -77,18 +69,43 @@ async def cmd_start(message: Message):
     await message.answer(
         f"Привет, {name}! 👋\n\n"
         "Я помогу тебе понять — <b>кем стать</b> и куда двигаться.\n\n"
-        "«Попробуй» — это профориентационный тест для школьников и студентов. "
-        "15 минут — и ты получишь честный разбор своих интересов, способностей "
-        "и подходящих профессий.\n\n"
-        "Выбери с чего начать 👇",
+        "«Попробуй» — профориентационный тест для школьников и студентов. "
+        "15 минут — и ты получишь честный разбор интересов, способностей и профессий.\n\n"
+        "Нажми кнопку внизу чтобы начать 👇",
         parse_mode="HTML",
-        reply_markup=kb_main()
+        reply_markup=kb_test()
     )
+    await message.answer("Другие опции:", reply_markup=kb_main())
+
+
+@dp.message(F.web_app_data)
+async def handle_web_app_data(message: Message):
+    try:
+        data = json.loads(message.web_app_data.data)
+    except Exception:
+        return
+    if data.get("action") != "generate_pdf":
+        return
+    scores = data.get("scores")
+    if not scores:
+        return
+    processing = await message.answer("⏳ Генерируем PDF...")
+    try:
+        from pdf import generate_pdf
+        pdf_path = await generate_pdf(message.message_id, message.from_user.id, scores)
+        await bot.send_document(
+            message.chat.id,
+            FSInputFile(pdf_path, filename="poprobui_report.pdf"),
+            caption="📄 Твой профориентационный отчёт · @poprobui_bot",
+        )
+        await processing.delete()
+    except Exception as e:
+        await processing.edit_text(f"Ошибка генерации PDF: {e}")
 
 
 @dp.message(Command("menu"))
 async def cmd_menu(message: Message):
-    await message.answer("Главное меню:", reply_markup=kb_main())
+    await message.answer("Опции:", reply_markup=kb_main())
 
 
 @dp.callback_query(F.data == "back_main")

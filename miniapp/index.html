@@ -234,7 +234,7 @@
 
   <div class="spacer"></div>
   <div class="btn-group">
-    <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📄 Скачать PDF-отчёт</button>
+    <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
     <button class="btn btn-secondary" onclick="showScreen('screen-intro')">Пройти другой тест</button>
   </div>
 </div>
@@ -541,6 +541,14 @@ function renderResults(data) {
 }
 
 function downloadPDF() {
+  // Primary: send data to bot → bot generates and sends PDF
+  if (tg) {
+    try {
+      tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
+      return;
+    } catch(e) {}
+  }
+  // Fallback: open in browser
   const payload = JSON.stringify({
     scores: resultScores,
     top_types: resultTopTypes,
