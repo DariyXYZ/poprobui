@@ -522,11 +522,20 @@ async function downloadPDF() {
   });
   const encoded = encodeURIComponent(payload);
   const printUrl = `${window.location.origin}${window.location.pathname}?print=1&data=${encoded}`;
+
+  // try Telegram openLink first
   if (tg && tg.openLink) {
     tg.openLink(printUrl);
-  } else {
-    window.open(printUrl, "_blank");
+    return;
   }
+  // fallback: create <a> and click (bypasses popup blocker)
+  const a = document.createElement("a");
+  a.href = printUrl;
+  a.target = "_blank";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ── Local scoring fallback (offline) ────────────────────────────────────
