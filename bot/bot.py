@@ -28,17 +28,15 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
-def kb_main() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Пополнить кошелёк", callback_data="topup")],
-        [InlineKeyboardButton(text="ℹ️ Как это работает",  callback_data="how_it_works")],
-    ])
-
-def kb_test() -> ReplyKeyboardMarkup:
+def kb_main() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=MINIAPP_URL))],
-            [KeyboardButton(text="📊 Мои результаты", web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results"))],
+            [
+                KeyboardButton(text="💳 Баланс"),
+                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results")),
+                KeyboardButton(text="ℹ️ Как работает"),
+            ],
         ],
         resize_keyboard=True,
     )
@@ -74,9 +72,8 @@ async def cmd_start(message: Message):
         "15 минут — и ты получишь честный разбор интересов, способностей и профессий.\n\n"
         "Нажми кнопку внизу чтобы начать 👇",
         parse_mode="HTML",
-        reply_markup=kb_test()
+        reply_markup=kb_main()
     )
-    await message.answer("Другие опции:", reply_markup=kb_main())
 
 
 @dp.message(F.web_app_data)
@@ -106,41 +103,31 @@ async def handle_web_app_data(message: Message):
 
 @dp.message(Command("menu"))
 async def cmd_menu(message: Message):
-    await message.answer("Опции:", reply_markup=kb_main())
+    await message.answer("Меню:", reply_markup=kb_main())
 
 
-@dp.callback_query(F.data == "back_main")
-async def cb_back_main(call: CallbackQuery):
-    await call.message.edit_text("Главное меню:", reply_markup=kb_main())
-    await call.answer()
-
-
-@dp.callback_query(F.data == "how_it_works")
-async def cb_how_it_works(call: CallbackQuery):
-    await call.message.edit_text(
+@dp.message(F.text == "ℹ️ Как работает")
+async def handle_how(message: Message):
+    await message.answer(
         "📖 <b>Как работает Попробуй</b>\n\n"
-        "1. Ты проходишь тест прямо здесь в Telegram — удобный интерфейс, никаких сторонних сайтов\n\n"
-        "2. Вопросы проверяют твои интересы, склонности и способности — честно, без воды\n\n"
-        "3. Результат — развёрнутый отчёт: твой профиль, подходящие профессии, "
-        "данные о рынке труда (зарплаты, спрос)\n\n"
-        "4. Отчёт можно сохранить в PDF и поделиться с родителями или учителем\n\n"
+        "1. Нажми «🧭 Пройти тест» — откроется мини-апп прямо в Telegram\n\n"
+        "2. Ответь на вопросы — они проверяют интересы, склонности и способности\n\n"
+        "3. Нажми «📨 Получить PDF в Telegram» — отчёт придёт в этот чат\n\n"
+        "4. Поделись с родителями или учителем\n\n"
         "<b>Базовый тест</b> — 299 ₽\n"
         "<b>Глубокий анализ</b> — 990 ₽ (+ живой разбор с экспертом)",
         parse_mode="HTML",
-        reply_markup=kb_back()
     )
-    await call.answer()
 
 
-@dp.callback_query(F.data == "topup")
-async def cb_topup(call: CallbackQuery):
-    await call.message.edit_text(
+@dp.message(F.text == "💳 Баланс")
+async def handle_balance(message: Message):
+    await message.answer(
         "💳 <b>Выбери тариф</b>\n\n"
         "После оплаты тест откроется автоматически.",
         parse_mode="HTML",
         reply_markup=kb_topup()
     )
-    await call.answer()
 
 
 @dp.callback_query(F.data == "pay_299")
