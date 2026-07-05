@@ -439,19 +439,23 @@
     font-weight: 600;
     color: var(--text2);
   }
-  .icon-btn-mini {
+  .graph-nav {
     position: absolute;
     top: 22px; right: 20px;
+    display: flex;
+    gap: 8px;
+    pointer-events: auto;
+    z-index: 3;
+  }
+  .icon-btn-mini {
     width: 36px; height: 36px;
     border-radius: 50%;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text2);
-    font-size: 16px;
+    font-size: 15px;
     cursor: pointer;
-    pointer-events: auto;
     touch-action: manipulation;
-    z-index: 3;
   }
   .icon-btn-mini:active { opacity: .7; }
   .graph-tooltip {
@@ -613,7 +617,11 @@
     <div class="intro-title graph-title">Твоя карта интересов</div>
     <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
-  <button class="icon-btn-mini" id="btn-randomize" onclick="randomizeLook()" title="Другой вариант карты">⟳</button>
+  <div class="graph-nav">
+    <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты">📊</button>
+    <button class="icon-btn-mini" onclick="openPricingSheet()" title="Тарифы">💳</button>
+    <button class="icon-btn-mini" onclick="randomizeLook()" title="Другой вариант карты">⟳</button>
+  </div>
 
   <div class="btn-footer">
     <button class="btn btn-primary" id="graph-cta" onclick="onGraphCta()">Начать бесплатно →</button>
@@ -817,11 +825,12 @@ const TEST_SEQUENCE = ["ddo", "yovayshi", "onett"];
 const TEST_META = {
   ddo: { icon: "⚡", name: "Экспресс", price: "Бесплатно", meta: "ДДО Климова · 20 вопросов · ~10 мин",
     feats: ["5 типов профессий по Климову", "ТОП-6 профессий под твой профиль", "Зарплатный диапазон + PDF в Telegram"] },
-  yovayshi: { icon: "🔍", name: "Стандарт", price: "200 ₽", meta: "Йовайши · 24 вопроса · ~12 мин",
+  yovayshi: { icon: "🔍", name: "Стандарт", price: "300 ₽", meta: "Йовайши · 24 вопроса · ~12 мин",
     feats: ["6 профессиональных склонностей", "Непрямые вопросы — точнее результат", "8 профессий с зарплатами"] },
-  onett: { icon: "🌐", name: "Полный", price: "300 ₽", meta: "O*NET RIASEC · 60 вопросов · ~20 мин",
+  onett: { icon: "🌐", name: "Полный", price: "500 ₽", meta: "O*NET RIASEC · 60 вопросов · ~20 мин",
     feats: ["Профиль по 6 направлениям RIASEC", "ТОП-10 профессий с зарплатами", "Методика Минтруда США (O*NET)"] },
 };
+const FREE_TEST_ID = "ddo";
 
 function loadTree() {
   try { return JSON.parse(localStorage.getItem("poprobui_tree") || "{}"); } catch (e) { return {}; }
@@ -1025,12 +1034,12 @@ function renderResults(data) {
   if (selectedTest === "ddo") {
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
       <div class="tier-upgrade-box-text">🔍 «Стандарт» находит склонности через непрямые вопросы — это точнее, чем выбор в лоб</div>
-      <button class="tier-upgrade-box-btn" onclick="goToTier('yovayshi')">Пройти «Стандарт» — 200 ₽ →</button>
+      <button class="tier-upgrade-box-btn" onclick="goToTier('yovayshi')">Пройти «Стандарт» — ${TEST_META.yovayshi.price} →</button>
     </div>`;
   } else if (selectedTest === "yovayshi") {
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
       <div class="tier-upgrade-box-text">🌐 «Полный» — международная методика RIASEC: 6 типов, 10 профессий и зарплата по каждой</div>
-      <button class="tier-upgrade-box-btn" onclick="goToTier('onett')">Пройти «Полный» — 300 ₽ →</button>
+      <button class="tier-upgrade-box-btn" onclick="goToTier('onett')">Пройти «Полный» — ${TEST_META.onett.price} →</button>
     </div>`;
   } else {
     upgradeBlock.innerHTML = "";
@@ -1265,16 +1274,31 @@ function appendBranchToSchedule(schedule, testId, result, idx) {
     });
   });
 
+  // Profession leaves are keyed by NAME, not per-branch — if two tests both
+  // point at "Инженер", they share one node instead of drawing two identical
+  // ones. A profession confirmed by multiple tests grows, turns gold, and
+  // gets a permanent label — the graph's visual answer to "who is this kid".
   const topLabel = sorted[0]?.[0];
   const hubId = testId + "::hub::" + topLabel;
   const rich = PROF_RICH[topLabel] || {};
   const limit = testId === "onett" ? 6 : testId === "yovayshi" ? 5 : 4;
-  (rich.profs || []).slice(0, limit).forEach(label => {
+  (rich.profs || []).slice(0, limit).forEach(profName => {
+    const profId = "prof::" + profName;
     schedule.push(() => {
       const hub = treeNodeById.get(hubId);
-      const p = spawnNear(hub, 18, null);
-      addTreeNode({ id: hubId + "::" + label, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 3.5, isLeaf: true, hue, sat: 55, light: 46, mass: 1, bornAt: performance.now() });
-      treeEdges.push({ a: hubId, b: hubId + "::" + label, kind: "leaf" });
+      let node = treeNodeById.get(profId);
+      if (!node) {
+        const p = spawnNear(hub, 18, null);
+        node = { id: profId, label: profName, x: p.x, y: p.y, vx: 0, vy: 0, r: 3.5, isLeaf: true, hue, sat: 55, light: 46, mass: 1, bornAt: performance.now(), confirmCount: 1 };
+        addTreeNode(node);
+      } else {
+        node.confirmCount = (node.confirmCount || 1) + 1;
+        node.r += 3.5;
+        node.mass += 0.6;
+        node.isConverged = node.confirmCount >= 2;
+        node.bornAt = performance.now(); // little re-pop pulse to flag the new confirmation
+      }
+      treeEdges.push({ a: hubId, b: profId, kind: node.confirmCount >= 2 ? "converge" : "leaf" });
     });
   });
 }
@@ -1380,8 +1404,10 @@ function treeDraw() {
   for (const e of treeEdges) {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
-    ctxEl.strokeStyle = dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)";
-    ctxEl.lineWidth = (e.kind === "trunk" ? 1.4 : 1) / camScale;
+    ctxEl.strokeStyle = e.kind === "converge"
+      ? "rgba(240,180,60,.55)"
+      : (dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)");
+    ctxEl.lineWidth = (e.kind === "trunk" ? 1.4 : e.kind === "converge" ? 1.6 : 1) / camScale;
     ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
   }
   for (const p of treeNodes) {
@@ -1389,9 +1415,9 @@ function treeDraw() {
     const isHovered = p === hoveredNode;
     ctxEl.globalAlpha = ease;
     ctxEl.beginPath();
-    ctxEl.shadowBlur = (p.isRoot ? 22 : p.isHub ? 13 : p.isTrunk ? 9 : 5) + (isHovered ? 10 : 0);
-    ctxEl.shadowColor = `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .85)`;
-    ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
+    ctxEl.shadowBlur = (p.isRoot ? 22 : p.isConverged ? 16 : p.isHub ? 13 : p.isTrunk ? 9 : 5) + (isHovered ? 10 : 0);
+    ctxEl.shadowColor = p.isConverged ? "rgba(240,180,60,.9)" : `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .85)`;
+    ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : p.isConverged ? "hsl(42, 88%, 58%)" : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     ctxEl.arc(p.x, p.y, p.r * ease, 0, Math.PI * 2);
     ctxEl.fill();
     if (isHovered) {
@@ -1404,11 +1430,11 @@ function treeDraw() {
   }
   ctxEl.textAlign = "center";
   for (const p of treeNodes) {
-    if (!p.isHub && !p.isRoot) continue;
+    if (!p.isHub && !p.isRoot && !p.isConverged) continue;
     const ease = Math.min(1, (now - p.bornAt) / POP_MS);
     ctxEl.globalAlpha = ease;
-    ctxEl.font = (p.isRoot ? "700 13px " : "700 11px ") + "Outfit, system-ui, sans-serif";
-    ctxEl.fillStyle = dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)";
+    ctxEl.font = (p.isRoot ? "700 13px " : p.isConverged ? "700 12px " : "700 11px ") + "Outfit, system-ui, sans-serif";
+    ctxEl.fillStyle = p.isConverged ? (dark ? "hsl(42, 95%, 68%)" : "hsl(36, 90%, 38%)") : (dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)");
     ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
     ctxEl.globalAlpha = 1;
   }
@@ -1454,9 +1480,9 @@ function wireTreeInteraction() {
       if (e.cancelable) e.preventDefault();
     }
     const hover = dragNode || pickTreeNode(x, y);
-    // Hub/root nodes already show a permanent label — highlight them
-    // instead of popping a redundant tooltip with the same text.
-    if (hover && (hover.isHub || hover.isRoot)) {
+    // Hub/root/converged nodes already show a permanent label — highlight
+    // them instead of popping a redundant tooltip with the same text.
+    if (hover && (hover.isHub || hover.isRoot || hover.isConverged)) {
       hoveredNode = hover;
       tooltip.style.opacity = "0";
     } else if (hover) {
@@ -1499,8 +1525,8 @@ function updateGraphStatus() {
   const cta = document.getElementById("graph-cta");
   const statusEl = document.getElementById("graph-status");
   if (!next) {
-    cta.textContent = "Все 3 теста пройдены ✓";
-    cta.onclick = () => {};
+    cta.textContent = "Все 3 теста пройдены — смотреть результаты →";
+    cta.onclick = () => showHistory();
     statusEl.textContent = "Дерево завершено — 3 из 3";
   } else {
     const meta = TEST_META[next];
@@ -1526,6 +1552,37 @@ function closeSheet(e) {
   document.getElementById("sheet-overlay").classList.remove("active");
 }
 
+function openPricingSheet() {
+  const done = completedTests();
+  const rows = TEST_SEQUENCE.map(id => {
+    const meta = TEST_META[id];
+    const isDone = done.includes(id);
+    const isNext = id === nextTestId();
+    const status = isDone ? "пройден ✓" : meta.price;
+    return `
+      <div class="tier-head-row" style="margin-bottom:10px;${isDone ? 'opacity:.55' : ''}">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="tier-icon-badge" style="width:40px;height:40px;font-size:20px">${meta.icon}</div>
+          <div>
+            <div class="tier-name" style="font-size:14px">${meta.name}</div>
+            <div class="tier-meta" style="margin-bottom:0">${meta.meta}</div>
+          </div>
+        </div>
+        <span class="tier-price-tag">${status}</span>
+      </div>
+      ${isNext ? `<button class="btn btn-secondary" style="margin-bottom:14px" onclick="closeSheet(); openPreviewSheet('${id}');">${done.length ? 'Продолжить' : 'Начать'} →</button>` : ""}
+    `;
+  }).join("");
+
+  document.getElementById("sheet-body").innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="tier-name" style="font-size:18px;margin-bottom:4px">Тарифы</div>
+    <div class="tier-meta" style="margin-bottom:16px">Отдельная оплата за каждый тест — без баланса и пополнений. Заплатил → тест открылся сразу.</div>
+    ${rows}
+  `;
+  showSheet();
+}
+
 function openPreviewSheet(testId) {
   const meta = TEST_META[testId];
   document.getElementById("sheet-body").innerHTML = `
@@ -1549,8 +1606,27 @@ function openPreviewSheet(testId) {
 }
 function confirmStartTest(testId) {
   closeSheet();
-  selectedTest = testId;
-  startTest();
+  if (testId === FREE_TEST_ID) {
+    selectedTest = testId;
+    startTest();
+    return;
+  }
+  requestInvoice(testId);
+}
+
+// Paid tiers can't be started directly — ask the bot to send a Telegram
+// invoice in chat (sendData only works when the Mini App was opened via
+// the ReplyKeyboardMarkup button, which is how every entry point here works).
+// The Mini App closes after sendData; payment_success in bot.py reopens it
+// straight into the paid test via the tier param.
+function requestInvoice(testId) {
+  if (!tg) { alert("Открой этот тест через бота в Telegram, чтобы оплатить"); return; }
+  try {
+    tg.sendData(JSON.stringify({ action: "request_invoice", test_id: testId }));
+  } catch (e) {
+    console.error("sendData failed:", e);
+    tg.showAlert("Вернись в чат с ботом и нажми «💳 Баланс», чтобы оплатить этот тест");
+  }
 }
 
 function openResultSheet(testId, data) {
