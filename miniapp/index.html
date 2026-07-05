@@ -240,6 +240,8 @@ let answers = {};
 let currentQ = 0;
 let resultId = null;
 let resultScores = null;
+let resultTopTypes = [];
+let resultRecommendations = [];
 
 // ── Test definitions ─────────────────────────────────────────────────────
 const TESTS = {
@@ -475,6 +477,8 @@ async function submitAnswers() {
 
 function renderResults(data) {
   const { scores, top_types, recommendations } = data;
+  resultTopTypes = top_types;
+  resultRecommendations = recommendations || [];
   const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
   const maxScore = sorted[0]?.[1] || 1;
 
@@ -511,7 +515,18 @@ function renderResults(data) {
 }
 
 async function downloadPDF() {
-  window.print();
+  const payload = JSON.stringify({
+    scores: resultScores,
+    top_types: resultTopTypes,
+    recommendations: resultRecommendations,
+  });
+  const encoded = encodeURIComponent(payload);
+  const printUrl = `${window.location.origin}${window.location.pathname}?print=1&data=${encoded}`;
+  if (tg && tg.openLink) {
+    tg.openLink(printUrl);
+  } else {
+    window.open(printUrl, "_blank");
+  }
 }
 
 // ── Local scoring fallback (offline) ────────────────────────────────────
@@ -562,6 +577,23 @@ window.renderQuestion = function() {
   _origRender();
   updateNextLabel();
 };
+
+// ── Print mode ───────────────────────────────────────────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("print") !== "1") return;
+  try {
+    const data = JSON.parse(decodeURIComponent(params.get("data") || "{}"));
+    if (!data.scores) return;
+    resultScores = data.scores;
+    resultTopTypes = data.top_types || [];
+    resultRecommendations = data.recommendations || [];
+    renderResults(data);
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById("screen-results").classList.add("active");
+    setTimeout(() => window.print(), 600);
+  } catch(e) {}
+})();
 </script>
 </body>
 </html>
