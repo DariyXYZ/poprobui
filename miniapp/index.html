@@ -40,18 +40,6 @@
     }
   }
 
-  @media print {
-    body { background: #fff !important; color: #000 !important; }
-    .screen { display: none !important; }
-    #screen-results { display: block !important; padding: 20px !important; }
-    .btn-footer { display: none !important; }
-    .print-header { display: block !important; }
-    .bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  }
-  .print-header { display: none; text-align: center; margin-bottom: 20px; }
-  .print-header h2 { font-size: 22px; color: var(--accent); font-family: var(--font-head); }
-  .print-header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
-
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
   body {
@@ -74,13 +62,17 @@
   }
   .screen.active { display: flex; }
 
+  /* ── Shared: uppercase caption label ── */
+  .intro-eyebrow, .section-label, .pair-label, .type-hero-profs-label {
+    font-family: var(--font-head);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+  }
+
   /* ── Intro ── */
   .intro-eyebrow {
-    font-family: var(--font-head);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
     color: var(--accent);
     text-align: center;
     margin-top: 32px;
@@ -148,10 +140,6 @@
 
   /* ── Question ── */
   .pair-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
     color: var(--muted);
     margin-bottom: 10px;
   }
@@ -238,10 +226,6 @@
   }
 
   .section-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
     color: var(--muted);
     margin-bottom: 14px;
     margin-top: 4px;
@@ -282,7 +266,7 @@
   .tier-icon-badge {
     width: 52px;
     height: 52px;
-    border-radius: 14px;
+    border-radius: var(--radius);
     background: var(--accent-dim);
     display: flex;
     align-items: center;
@@ -368,7 +352,7 @@
     line-height: 1;
     flex-shrink: 0;
     width: 60px; height: 60px;
-    border-radius: 16px;
+    border-radius: var(--radius);
     background: rgba(255,255,255,.18);
     display: flex; align-items: center; justify-content: center;
   }
@@ -392,10 +376,6 @@
     margin-bottom: 16px;
   }
   .type-hero-profs-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
     color: rgba(255,255,255,.65);
     margin-bottom: 8px;
   }
@@ -466,8 +446,6 @@
     font-weight: 500;
   }
 
-  .spacer { display: none; }
-  .btn-group { display: none; }
   .btn-footer {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -557,7 +535,7 @@
         <div class="tier-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
         <div class="tier-feats">
           <div class="tier-feat">5 типов профессий по Климову</div>
-          <div class="tier-feat">ТОП-6 профессий конкретно для тебя</div>
+          <div class="tier-feat">ТОП-6 профессий под твой профиль</div>
           <div class="tier-feat">Зарплатный диапазон + PDF в Telegram</div>
         </div>
       </div>
@@ -573,8 +551,8 @@
         <div class="tier-meta">Йовайши · 24 вопроса · ~12 мин</div>
         <div class="tier-feats">
           <div class="tier-feat">6 профессиональных склонностей</div>
-          <div class="tier-feat">Косвенные вопросы — честнее результат</div>
-          <div class="tier-feat">8 профессий + зарплаты по направлению</div>
+          <div class="tier-feat">Непрямые вопросы — точнее результат</div>
+          <div class="tier-feat">8 профессий с зарплатами</div>
         </div>
       </div>
       <div class="tier-radio"></div>
@@ -588,9 +566,9 @@
         </div>
         <div class="tier-meta">O*NET RIASEC · 60 вопросов · ~20 мин</div>
         <div class="tier-feats">
-          <div class="tier-feat">Международный RIASEC-профиль (6 типов)</div>
-          <div class="tier-feat">ТОП-10 профессий с данными рынка</div>
-          <div class="tier-feat">Самый точный и глубокий анализ</div>
+          <div class="tier-feat">Профиль по 6 направлениям RIASEC</div>
+          <div class="tier-feat">ТОП-10 профессий с зарплатами</div>
+          <div class="tier-feat">Методика Минтруда США (O*NET)</div>
         </div>
       </div>
       <div class="tier-radio"></div>
@@ -628,10 +606,6 @@
 
 <!-- ── Screen: Results ─────────────────────────────────────────────────── -->
 <div id="screen-results" class="screen">
-  <div class="print-header">
-    <h2>Попробуй — профориентация</h2>
-    <p>Результаты тестирования · @poprobui_bot</p>
-  </div>
   <div class="results-header">
     <div class="results-emoji">🎯</div>
     <div class="results-title">Твой профиль готов!</div>
@@ -705,7 +679,7 @@ const TESTS = {
       { id: "q17", type: "pair", a: "Красить или расписывать стены и изделия", b: "Монтировать здания или собирать машины и приборы" },
       { id: "q18", type: "pair", a: "Организовывать культпоходы в театры и музеи", b: "Играть на сцене или участвовать в концертах" },
       { id: "q19", type: "pair", a: "Изготавливать по чертежам детали и строить здания", b: "Заниматься черчением и копированием чертежей" },
-      { id: "q20", type: "pair", a: "Вести борьбу с болезнями растений", b: "Работать на клавишных машинах" },
+      { id: "q20", type: "pair", a: "Вести борьбу с болезнями растений", b: "Печатать и оформлять документы на компьютере" },
     ]
   },
   yovayshi: {
@@ -924,7 +898,7 @@ function renderResults(data) {
   const maxScore = sorted[0]?.[1] || 1;
 
   // results subtitle per tier
-  const tierLabels = { ddo:"Профиль по Климову", yovayshi:"Профиль склонностей", onett:"RIASEC-профиль" };
+  const tierLabels = { ddo:"Профиль по Климову", yovayshi:"Профиль склонностей", onett:"Профиль RIASEC" };
   document.getElementById("results-sub").textContent = tierLabels[selectedTest] || "Вот что мы узнали о тебе";
 
   // top cards
@@ -972,61 +946,35 @@ function renderResults(data) {
   const upgradeBlock = document.getElementById("upgrade-block");
   if (selectedTest === "ddo") {
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
-      <div class="tier-upgrade-box-text">🔍 Тест «Стандарт» (200 ₽) выявит 6 глубинных склонностей через косвенные вопросы</div>
-      <button class="tier-upgrade-box-btn" onclick="showScreen('screen-intro')">Попробовать глубже →</button>
+      <div class="tier-upgrade-box-text">🔍 «Стандарт» находит склонности через непрямые вопросы — это точнее, чем выбор в лоб</div>
+      <button class="tier-upgrade-box-btn" onclick="goToTier('yovayshi')">Пройти «Стандарт» — 200 ₽ →</button>
     </div>`;
   } else if (selectedTest === "yovayshi") {
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
-      <div class="tier-upgrade-box-text">🌐 Тест «Полный» (300 ₽) — международный RIASEC-профиль и 10 профессий с данными рынка</div>
-      <button class="tier-upgrade-box-btn" onclick="showScreen('screen-intro')">Попробовать полный тест →</button>
+      <div class="tier-upgrade-box-text">🌐 «Полный» — международная методика RIASEC: 6 типов, 10 профессий и зарплата по каждой</div>
+      <button class="tier-upgrade-box-btn" onclick="goToTier('onett')">Пройти «Полный» — 300 ₽ →</button>
     </div>`;
   } else {
     upgradeBlock.innerHTML = "";
   }
 }
 
+function goToTier(testId) {
+  showScreen("screen-intro");
+  const card = document.querySelector(`.test-card[data-test="${testId}"]`);
+  if (card) selectTest(card);
+}
+
 function downloadPDF() {
-  if (!tg) { alert("Открой в Telegram"); return; }
-  if (!resultScores) { tg.showAlert("Результаты не найдены. Пройди тест заново."); return; }
+  if (!tg) { alert("Открой этот тест через бота в Telegram — иначе PDF не отправить"); return; }
+  if (!resultScores) { tg.showAlert("Результаты не найдены — пройди тест заново"); return; }
   try {
     tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
   } catch(e) {
     console.error("sendData failed:", e);
-    tg.showAlert("Открой тест через кнопку «🧭 Пройти тест» или «📊 Результаты» внизу чата — тогда PDF придёт прямо в Telegram.");
+    tg.showAlert("Вернись в чат с ботом и открой тест через кнопку «🧭 Пройти тест» или «📊 Результаты» — тогда PDF придёт сюда");
   }
 }
-function _downloadPDF_unused() {
-  const payload = JSON.stringify({
-    scores: resultScores,
-    top_types: resultTopTypes,
-    recommendations: resultRecommendations,
-  });
-  const printUrl = `${window.location.origin}${window.location.pathname}?print=1&data=${encodeURIComponent(payload)}`;
-
-  const existing = document.getElementById("pdf-modal");
-  if (existing) existing.remove();
-
-  const modal = document.createElement("div");
-  modal.id = "pdf-modal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:9999;";
-  modal.innerHTML = `
-    <div style="background:#fff;width:100%;border-radius:20px 20px 0 0;padding:28px 24px 40px;text-align:center;font-family:-apple-system,sans-serif;">
-      <div style="font-size:36px;margin-bottom:12px">📄</div>
-      <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1a1a2e">Скачать PDF-отчёт</div>
-      <div style="font-size:14px;color:#888;margin-bottom:24px;line-height:1.5">Нажми кнопку — откроется браузер<br>и PDF скачается автоматически</div>
-      <a href="${printUrl}" target="_blank" rel="noopener"
-         style="display:block;background:#6c63ff;color:#fff;padding:16px;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none;margin-bottom:12px;">
-        Открыть и скачать PDF →
-      </a>
-      <button onclick="document.getElementById('pdf-modal').remove()"
-              style="background:none;border:none;color:#888;font-size:15px;padding:8px;cursor:pointer;width:100%;">
-        Отмена
-      </button>
-    </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener("click", e => { if (e.target === modal) modal.remove(); });
-}
-
 // ── Local scoring fallback (offline) ────────────────────────────────────
 function localScore() {
   if (selectedTest === "ddo") {
@@ -1213,68 +1161,10 @@ document.addEventListener("keydown", e => {
 // ── URL params on load ────────────────────────────────────────────────────
 (function() {
   const p = new URLSearchParams(window.location.search);
-  if (p.get("print") === "1") return; // handled by print mode below
   if (p.get("screen") === "results") { showHistory(); }
   else if (p.get("screen") === "test") { startTest(); }
 })();
 
-// ── Print mode ───────────────────────────────────────────────────────────
-(function() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("print") !== "1") return;
-  try {
-    const data = JSON.parse(decodeURIComponent(params.get("data") || "{}"));
-    if (!data.scores) return;
-    resultScores = data.scores;
-    resultTopTypes = data.top_types || [];
-    resultRecommendations = data.recommendations || [];
-    renderResults(data);
-    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-    const el = document.getElementById("screen-results");
-    el.classList.add("active");
-
-    // replace btn-group with download button
-    const btnGroup = el.querySelector(".btn-group");
-    if (btnGroup) {
-      btnGroup.innerHTML = `
-        <button id="btn-gen-pdf" onclick="genPDF()"
-          style="width:100%;padding:16px;background:#6c63ff;color:#fff;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;">
-          📥 Скачать PDF
-        </button>`;
-    }
-  } catch(e) {}
-})();
-
-async function genPDF() {
-  const btn = document.getElementById("btn-gen-pdf");
-  btn.textContent = "⏳ Генерируем...";
-  btn.disabled = true;
-  try {
-    if (!window.html2pdf) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-    const el = document.getElementById("screen-results");
-    const btnGroup = el.querySelector(".btn-group");
-    if (btnGroup) btnGroup.style.display = "none";
-    await html2pdf(el, {
-      margin: [8, 8, 8, 8],
-      filename: "poprobui-report.pdf",
-      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    });
-    if (btnGroup) btnGroup.style.display = "";
-    btn.textContent = "✅ PDF скачан!";
-  } catch(e) {
-    btn.textContent = "🖨 Печать (Ctrl+P → Сохранить как PDF)";
-    btn.disabled = false;
-    window.print();
-  }
-}
 </script>
 </body>
 </html>

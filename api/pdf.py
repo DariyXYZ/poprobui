@@ -13,8 +13,8 @@ DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
 OUTPUT_DIR = os.path.join(DATA_DIR, "reports")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-ACCENT = colors.HexColor("#6c63ff")
-ACCENT_LIGHT = colors.HexColor("#e8e7ff")
+ACCENT = colors.HexColor("#5B54EE")
+ACCENT_LIGHT = colors.HexColor("#EDEEFF")
 MUTED = colors.HexColor("#888888")
 TEXT = colors.HexColor("#1a1a2e")
 BG_CARD = colors.HexColor("#f5f4ff")
@@ -50,7 +50,7 @@ async def generate_pdf(result_id: int, tg_user_id: int, scores: dict) -> str:
 
     # ── Header ──────────────────────────────────────────────────────────────
     header_data = [
-        [Paragraph("<b><font color='#6c63ff'>Попробуй.</font></b>",
+        [Paragraph("<b><font color='#5B54EE'>Попробуй.</font></b>",
                    ParagraphStyle("logo", fontSize=22, fontName="Helvetica-Bold")),
          Paragraph(f"Отчёт #{result_id}<br/>@poprobui_bot",
                    ParagraphStyle("meta", fontSize=9, fontName="Helvetica",
@@ -75,7 +75,7 @@ async def generate_pdf(result_id: int, tg_user_id: int, scores: dict) -> str:
     top_data = [[
         Table(
             [[Paragraph(f"<font color='#888888' size='8'>{ranks[i]}</font>", style_normal)],
-             [Paragraph(f"<b><font color='{'#ffffff' if i==0 else '#6c63ff'}'>{name}</font></b>",
+             [Paragraph(f"<b><font color='{'#ffffff' if i==0 else '#5B54EE'}'>{name}</font></b>",
                         ParagraphStyle("card_name", fontSize=13, fontName="Helvetica-Bold",
                                         alignment=TA_CENTER))]],
             colWidths=[55*mm]
