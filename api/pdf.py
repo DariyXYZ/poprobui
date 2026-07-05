@@ -1,4 +1,5 @@
 """PDF report generator using reportlab (pure Python, no system deps)."""
+import asyncio
 import os
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -34,6 +35,13 @@ BG_CARD = colors.HexColor("#f5f4ff")
 
 
 async def generate_pdf(result_id: int, tg_user_id: int, scores: dict, test_id: str = "ddo") -> str:
+    """Runs the (synchronous, CPU-bound) reportlab work in a thread so it
+    doesn't block the event loop — lets many PDFs generate concurrently
+    instead of queueing one-by-one behind each other."""
+    return await asyncio.to_thread(_generate_pdf_sync, result_id, tg_user_id, scores, test_id)
+
+
+def _generate_pdf_sync(result_id: int, tg_user_id: int, scores: dict, test_id: str = "ddo") -> str:
     out_path = os.path.join(OUTPUT_DIR, f"report_{result_id}.pdf")
     doc = SimpleDocTemplate(
         out_path,
