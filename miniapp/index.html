@@ -514,40 +514,36 @@ function renderResults(data) {
   `;
 }
 
-async function downloadPDF() {
-  const btn = document.getElementById("btn-pdf");
-  btn.textContent = "⏳ Генерируем...";
-  btn.disabled = true;
+function downloadPDF() {
+  const payload = JSON.stringify({
+    scores: resultScores,
+    top_types: resultTopTypes,
+    recommendations: resultRecommendations,
+  });
+  const printUrl = `${window.location.origin}${window.location.pathname}?print=1&data=${encodeURIComponent(payload)}`;
 
-  try {
-    if (!window.html2pdf) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
+  const existing = document.getElementById("pdf-modal");
+  if (existing) existing.remove();
 
-    const el = document.getElementById("screen-results");
-    const btnGroup = el.querySelector(".btn-group");
-    if (btnGroup) btnGroup.style.display = "none";
-
-    await html2pdf(el, {
-      margin: [8, 8, 8, 8],
-      filename: "poprobui-report.pdf",
-      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    });
-
-    if (btnGroup) btnGroup.style.display = "";
-  } catch(e) {
-    window.print();
-  } finally {
-    btn.textContent = "📄 Скачать PDF-отчёт";
-    btn.disabled = false;
-  }
+  const modal = document.createElement("div");
+  modal.id = "pdf-modal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:9999;";
+  modal.innerHTML = `
+    <div style="background:#fff;width:100%;border-radius:20px 20px 0 0;padding:28px 24px 40px;text-align:center;font-family:-apple-system,sans-serif;">
+      <div style="font-size:36px;margin-bottom:12px">📄</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#1a1a2e">Скачать PDF-отчёт</div>
+      <div style="font-size:14px;color:#888;margin-bottom:24px;line-height:1.5">Нажми кнопку — откроется браузер<br>и PDF скачается автоматически</div>
+      <a href="${printUrl}" target="_blank" rel="noopener"
+         style="display:block;background:#6c63ff;color:#fff;padding:16px;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none;margin-bottom:12px;">
+        Открыть и скачать PDF →
+      </a>
+      <button onclick="document.getElementById('pdf-modal').remove()"
+              style="background:none;border:none;color:#888;font-size:15px;padding:8px;cursor:pointer;width:100%;">
+        Отмена
+      </button>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", e => { if (e.target === modal) modal.remove(); });
 }
 
 // ── Local scoring fallback (offline) ────────────────────────────────────
