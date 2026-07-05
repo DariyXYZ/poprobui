@@ -546,7 +546,10 @@ function downloadPDF() {
     try {
       tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
       return;
-    } catch(e) {}
+    } catch(e) {
+      tg.showAlert("Закрой мини-апп и нажми кнопку «🧭 Пройти тест» внизу чата — тогда PDF придёт прямо в Telegram.");
+      return;
+    }
   }
   // Fallback: open in browser
   const payload = JSON.stringify({
