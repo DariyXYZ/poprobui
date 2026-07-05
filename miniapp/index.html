@@ -515,27 +515,39 @@ function renderResults(data) {
 }
 
 async function downloadPDF() {
-  const payload = JSON.stringify({
-    scores: resultScores,
-    top_types: resultTopTypes,
-    recommendations: resultRecommendations,
-  });
-  const encoded = encodeURIComponent(payload);
-  const printUrl = `${window.location.origin}${window.location.pathname}?print=1&data=${encoded}`;
+  const btn = document.getElementById("btn-pdf");
+  btn.textContent = "⏳ Генерируем...";
+  btn.disabled = true;
 
-  // try Telegram openLink first
-  if (tg && tg.openLink) {
-    tg.openLink(printUrl);
-    return;
+  try {
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const el = document.getElementById("screen-results");
+    const btnGroup = el.querySelector(".btn-group");
+    if (btnGroup) btnGroup.style.display = "none";
+
+    await html2pdf(el, {
+      margin: [8, 8, 8, 8],
+      filename: "poprobui-report.pdf",
+      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    });
+
+    if (btnGroup) btnGroup.style.display = "";
+  } catch(e) {
+    window.print();
+  } finally {
+    btn.textContent = "📄 Скачать PDF-отчёт";
+    btn.disabled = false;
   }
-  // fallback: create <a> and click (bypasses popup blocker)
-  const a = document.createElement("a");
-  a.href = printUrl;
-  a.target = "_blank";
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
 }
 
 // ── Local scoring fallback (offline) ────────────────────────────────────
