@@ -127,6 +127,20 @@
   .spacer { flex: 1; }
   .btn-group { display: flex; flex-direction: column; gap: 0; margin-top: 24px; }
 
+  /* ── History ── */
+  .history-empty { text-align:center;color:var(--muted);font-size:15px;padding:48px 0; }
+  .hist-card { background:var(--surface);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px; }
+  .hist-card-top { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px; }
+  .hist-test-name { font-size:15px;font-weight:700; }
+  .hist-date { font-size:12px;color:var(--muted); }
+  .hist-tops { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px; }
+  .hist-top-tag { background:var(--accent-light);color:var(--accent);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600; }
+  .hist-top-tag.first { background:var(--accent);color:#fff; }
+  .hist-actions { display:flex;gap:8px; }
+  .hist-btn { flex:1;padding:9px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer; }
+  .hist-btn-view { background:var(--accent-light);color:var(--accent); }
+  .hist-btn-pdf  { background:var(--accent);color:#fff; }
+
   /* ── Loading ── */
   .loader { display: flex; flex-direction: column; align-items: center; justify-content: center;
             flex: 1; gap: 16px; }
@@ -223,6 +237,15 @@
     <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📄 Скачать PDF-отчёт</button>
     <button class="btn btn-secondary" onclick="showScreen('screen-intro')">Пройти другой тест</button>
   </div>
+</div>
+
+<!-- ── Screen: History ────────────────────────────────────────────────── -->
+<div id="screen-history" class="screen">
+  <div style="font-size:24px;font-weight:800;margin-bottom:4px">Мои результаты</div>
+  <div style="color:var(--muted);font-size:14px;margin-bottom:24px">История тестирований</div>
+  <div id="history-list"></div>
+  <div class="spacer"></div>
+  <button class="btn btn-secondary" onclick="showScreen('screen-intro')">← К тестам</button>
 </div>
 
 <script>
@@ -465,12 +488,15 @@ async function submitAnswers() {
     resultId = data.result_id;
     resultScores = data.scores;
     renderResults(data);
+    saveToHistory(selectedTest, data.scores, data.top_types, data.recommendations);
     showScreen("screen-results");
   } catch(e) {
     // offline fallback — local scoring
     const scores = localScore();
+    const topTypes = Object.keys(scores).sort((a,b)=>scores[b]-scores[a]).slice(0,3);
     resultScores = scores;
-    renderResults({ scores, top_types: Object.keys(scores).sort((a,b)=>scores[b]-scores[a]).slice(0,3), recommendations: [] });
+    renderResults({ scores, top_types: topTypes, recommendations: [] });
+    saveToHistory(selectedTest, scores, topTypes, []);
     showScreen("screen-results");
   }
 }
@@ -594,6 +620,78 @@ window.renderQuestion = function() {
   _origRender();
   updateNextLabel();
 };
+
+// ── History (localStorage) ───────────────────────────────────────────────
+const TEST_NAMES = { ddo: "Экспресс-тест (ДДО)", yovayshi: "Склонности (Йовайши)", onett: "Международный RIASEC (O*NET)", golomshtok: "Карта интересов" };
+
+function saveToHistory(testId, scores, topTypes, recommendations) {
+  const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
+  history.unshift({
+    date: new Date().toLocaleDateString("ru-RU"),
+    test_id: testId,
+    test_name: TEST_NAMES[testId] || testId,
+    scores, top_types: topTypes, recommendations,
+  });
+  localStorage.setItem("poprobui_history", JSON.stringify(history.slice(0, 10)));
+}
+
+function showHistory() {
+  const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
+  const list = document.getElementById("history-list");
+  if (!history.length) {
+    list.innerHTML = '<div class="history-empty">Тестов пока нет.<br>Пройди первый тест!</div>';
+  } else {
+    list.innerHTML = history.map((r, i) => `
+      <div class="hist-card">
+        <div class="hist-card-top">
+          <div class="hist-test-name">${r.test_name}</div>
+          <div class="hist-date">${r.date}</div>
+        </div>
+        <div class="hist-tops">
+          ${(r.top_types || []).slice(0,3).map((t,j) =>
+            `<span class="hist-top-tag${j===0?' first':''}">${j===0?'#1 ':j===1?'#2 ':'#3 '}${t}</span>`
+          ).join("")}
+        </div>
+        <div class="hist-actions">
+          <button class="hist-btn hist-btn-view" onclick="viewHistoryResult(${i})">Смотреть</button>
+          <button class="hist-btn hist-btn-pdf" onclick="pdfHistoryResult(${i})">Скачать PDF</button>
+        </div>
+      </div>`).join("");
+  }
+  showScreen("screen-history");
+}
+
+function viewHistoryResult(i) {
+  const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
+  const r = history[i]; if (!r) return;
+  resultScores = r.scores; resultTopTypes = r.top_types; resultRecommendations = r.recommendations || [];
+  renderResults({ scores: r.scores, top_types: r.top_types, recommendations: r.recommendations });
+  showScreen("screen-results");
+}
+
+function pdfHistoryResult(i) {
+  const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
+  const r = history[i]; if (!r) return;
+  resultScores = r.scores; resultTopTypes = r.top_types; resultRecommendations = r.recommendations || [];
+  downloadPDF();
+}
+
+// ── Enter key for questions ───────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const btn = document.getElementById("btn-next");
+  if (btn && !btn.disabled && document.getElementById("screen-test").classList.contains("active")) {
+    btn.click();
+  }
+});
+
+// ── URL params on load ────────────────────────────────────────────────────
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get("print") === "1") return; // handled by print mode below
+  if (p.get("screen") === "results") { showHistory(); }
+  else if (p.get("screen") === "test") { startTest(); }
+})();
 
 // ── Print mode ───────────────────────────────────────────────────────────
 (function() {
