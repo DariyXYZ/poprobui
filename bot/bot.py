@@ -22,6 +22,16 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 MINIAPP_URL = os.getenv("MINIAPP_URL", "https://poprobui.railway.app")
 YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "")
 
+# Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
+# caches aggressively by exact URL, so a stale query string means users
+# keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
+MINIAPP_VERSION = "9"
+
+
+def miniapp_url(extra: str = "") -> str:
+    sep = "&" if extra else ""
+    return f"{MINIAPP_URL}?v={MINIAPP_VERSION}{sep}{extra}"
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
@@ -31,10 +41,10 @@ dp = Dispatcher(storage=MemoryStorage())
 def kb_main() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=MINIAPP_URL))],
+            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=miniapp_url()))],
             [
                 KeyboardButton(text="💳 Баланс"),
-                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results")),
+                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url("screen=results"))),
                 KeyboardButton(text="ℹ️ Как работает"),
             ],
         ],
@@ -207,7 +217,7 @@ async def payment_success(message: Message):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
                 text="🧭 Начать тест",
-                web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen={screen}&paid=1")
+                web_app=WebAppInfo(url=miniapp_url(f"screen={screen}&paid=1"))
             )
         ]])
     )

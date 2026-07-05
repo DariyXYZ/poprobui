@@ -959,11 +959,13 @@ function handleTestComplete(data) {
   saveToHistory(selectedTest, data.scores, data.top_types, data.recommendations);
 
   showScreen("screen-intro");
-  rebuildTree(); // rebuild from what was already saved, instantly (no animation)
+  rebuildTreeInstant(); // silently place what was already there — no replay
   saveTreeResult(selectedTest, data.scores, data.top_types);
+  const root = treeNodeById.get(ROOT_ID);
+  if (root) { root.r = rootRadius(completedTests().length); root.bornAt = performance.now(); } // pulse
   updateGraphStatus();
-  growBranch(selectedTest, { scores: data.scores, top_types: data.top_types }, TEST_SEQUENCE.indexOf(selectedTest), false);
-  setTimeout(() => openResultSheet(selectedTest, data), 400);
+  growNewBranch(selectedTest, { scores: data.scores, top_types: data.top_types }, TEST_SEQUENCE.indexOf(selectedTest));
+  setTimeout(() => openResultSheet(selectedTest, data), 900);
 }
 
 function renderResults(data) {
@@ -1165,20 +1167,26 @@ const PROF_RICH = {
 // + gentle centering, integrated every frame — same shape as Obsidian's graph.
 const ROOT_ID = "__root__";
 const BRANCH_HUES = [172, 322, 42]; // teal / magenta / amber, one per test slot
+const POP_MS = 320; // per-node pop-in duration
+const CAM_PAD_TOP = 118, CAM_PAD_BOTTOM = 104, CAM_PAD_SIDE = 20;
 
 let treeNodes = [], treeEdges = [], treeNodeById = new Map();
 let treePhysics = randomTreePhysics();
 let hueJitter = Math.random() * 30 - 15;
 let canvasEl, ctxEl, canvasW = 0, canvasH = 0;
-let dragNode = null, downNode = null, moveDist = 0;
+let dragNode = null, downNode = null, moveDist = 0, hoveredNode = null;
+let hasShownTreeOnce = false;
+let camScale = 1, camCX = 0, camCY = 0;
+
+function rootRadius(doneCount) { return 9 + doneCount * 4; }
 
 function randomTreePhysics() {
   return {
     repel: 2200 + Math.random() * 1400,
     spring: 0.010 + Math.random() * 0.010,
-    restTrunk: 60 + Math.random() * 30,
-    restHub: 50 + Math.random() * 30,
-    restSat: 26 + Math.random() * 16,
+    restTrunk: 55 + Math.random() * 25,
+    restHub: 42 + Math.random() * 22,
+    restSat: 20 + Math.random() * 12,
     damping: 0.85 + Math.random() * 0.03,
   };
 }
@@ -1198,6 +1206,7 @@ function resizeTreeCanvas() {
   canvasEl.width = canvasW * dpr; canvasEl.height = canvasH * dpr;
   canvasEl.style.width = canvasW + "px"; canvasEl.style.height = canvasH + "px";
   ctxEl.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!treeNodes.length) { camCX = canvasW / 2; camCY = canvasH / 2; camScale = 1.1; }
 }
 
 function addTreeNode(n) { treeNodes.push(n); treeNodeById.set(n.id, n); }
@@ -1210,62 +1219,91 @@ function spawnNear(parent, jitter, angle) {
   };
 }
 
-// Instant, unanimated rebuild from whatever's already saved in localStorage.
-function rebuildTree() {
-  treeNodes = []; treeEdges = []; treeNodeById = new Map();
-  const name = tg?.initDataUnsafe?.user?.first_name || "Ты";
-  addTreeNode({ id: ROOT_ID, label: name, x: canvasW / 2, y: canvasH / 2, vx: 0, vy: 0, r: 22, isRoot: true, hue: 250, sat: 65, light: 78, mass: 6 });
+// ── Build order: one flat list of "add this node" steps, root first, then
+// each completed test's branch in sequence — played back one at a time so
+// the tree visibly grows instead of appearing all at once.
+function buildTreeSchedule() {
+  const schedule = [];
   const tree = loadTree();
-  TEST_SEQUENCE.forEach((testId, idx) => {
-    if (tree[testId]) growBranch(testId, tree[testId], idx, true);
+  const doneCount = TEST_SEQUENCE.filter(id => tree[id]).length;
+
+  schedule.push(() => {
+    const name = tg?.initDataUnsafe?.user?.first_name || "Ты";
+    addTreeNode({ id: ROOT_ID, label: name, x: canvasW / 2, y: canvasH / 2, vx: 0, vy: 0, r: rootRadius(doneCount), isRoot: true, hue: 250, sat: 65, light: 78, mass: 6, bornAt: performance.now() });
   });
+
+  TEST_SEQUENCE.forEach((testId, idx) => {
+    if (tree[testId]) appendBranchToSchedule(schedule, testId, tree[testId], idx);
+  });
+  return schedule;
 }
 
-// Adds one test's branch (trunk → hubs → top-hub's profession leaves).
-// instant=true places everything immediately (page load); instant=false
-// staggers node-by-node so it visibly grows in, like Obsidian settling.
-function growBranch(testId, result, idx, instant) {
+// Appends one test's branch (trunk → hubs → top-hub's profession leaves)
+// to an existing schedule array. Leaves only grow off the top-scoring hub —
+// keeps density readable instead of every scale sprouting a profession list.
+function appendBranchToSchedule(schedule, testId, result, idx) {
   const hue = (BRANCH_HUES[idx % BRANCH_HUES.length] + hueJitter + 360) % 360;
   const trunkId = "trunk::" + testId;
   const angle = (idx / TEST_SEQUENCE.length) * Math.PI * 2 - Math.PI / 2;
-  const schedule = [];
 
-  schedule.push({ delay: 0, fn: () => {
+  schedule.push(() => {
     const root = treeNodeById.get(ROOT_ID);
     const p = spawnNear(root, 0, angle);
-    addTreeNode({ id: trunkId, label: TEST_META[testId].name, testId, x: p.x, y: p.y, vx: 0, vy: 0, r: 9, isTrunk: true, hue, sat: 45, light: 60, mass: 2 });
+    addTreeNode({ id: trunkId, label: TEST_META[testId].name, testId, x: p.x, y: p.y, vx: 0, vy: 0, r: 6, isTrunk: true, hue, sat: 45, light: 60, mass: 2, bornAt: performance.now() });
     treeEdges.push({ a: ROOT_ID, b: trunkId, kind: "trunk" });
-  }});
+  });
 
   const sorted = Object.entries(result.scores).sort((a, b) => b[1] - a[1]);
   const maxScore = sorted[0]?.[1] || 1;
-  sorted.forEach(([label, score], i) => {
+  sorted.forEach(([label, score]) => {
     const hubId = testId + "::hub::" + label;
-    schedule.push({ delay: (i + 1) * (instant ? 0 : 90), fn: () => {
+    schedule.push(() => {
       const trunk = treeNodeById.get(trunkId);
-      const p = spawnNear(trunk, 24, null);
-      addTreeNode({ id: hubId, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 10 + (score / maxScore) * 14, isHub: true, hue, sat: 68, light: 58, mass: 3 });
+      const p = spawnNear(trunk, 22, null);
+      addTreeNode({ id: hubId, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 6 + (score / maxScore) * 9, isHub: true, hue, sat: 68, light: 58, mass: 3, bornAt: performance.now() });
       treeEdges.push({ a: trunkId, b: hubId, kind: "branch" });
-    }});
+    });
   });
 
-  // profession leaves only for this test's top-scoring hub — keeps density readable
   const topLabel = sorted[0]?.[0];
   const hubId = testId + "::hub::" + topLabel;
   const rich = PROF_RICH[topLabel] || {};
   const limit = testId === "onett" ? 6 : testId === "yovayshi" ? 5 : 4;
-  const profs = (rich.profs || []).slice(0, limit);
-  const satBase = (sorted.length + 1) * (instant ? 0 : 90);
-  profs.forEach((label, i) => {
-    schedule.push({ delay: satBase + i * (instant ? 0 : 60), fn: () => {
+  (rich.profs || []).slice(0, limit).forEach(label => {
+    schedule.push(() => {
       const hub = treeNodeById.get(hubId);
-      const p = spawnNear(hub, 20, null);
-      addTreeNode({ id: hubId + "::" + label, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 4.5, isLeaf: true, hue, sat: 55, light: 46, mass: 1 });
+      const p = spawnNear(hub, 18, null);
+      addTreeNode({ id: hubId + "::" + label, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 3.5, isLeaf: true, hue, sat: 55, light: 46, mass: 1, bornAt: performance.now() });
       treeEdges.push({ a: hubId, b: hubId + "::" + label, kind: "leaf" });
-    }});
+    });
   });
+}
 
-  schedule.forEach(item => instant ? item.fn() : setTimeout(item.fn, item.delay));
+function runSchedule(schedule, perDelay) {
+  schedule.forEach((fn, i) => setTimeout(fn, i * perDelay));
+}
+
+// Places the full persisted tree immediately, no reveal animation — used
+// to silently reconstruct prior state right before growing a brand-new
+// branch, so only the new branch gets the "growing" moment.
+function rebuildTreeInstant() {
+  treeNodes = []; treeEdges = []; treeNodeById = new Map();
+  buildTreeSchedule().forEach(fn => fn());
+  hasShownTreeOnce = true;
+}
+// Plays the full persisted tree back node-by-node — root first, then each
+// branch in order. Used on first load of the session so returning users
+// still see it "grow" rather than snapping into place.
+function rebuildTreeAnimated() {
+  treeNodes = []; treeEdges = []; treeNodeById = new Map();
+  runSchedule(buildTreeSchedule(), 70);
+  hasShownTreeOnce = true;
+}
+// Grows just the newly-finished test's branch onto the existing tree.
+function growNewBranch(testId, result, idx) {
+  const schedule = [];
+  appendBranchToSchedule(schedule, testId, result, idx);
+  runSchedule(schedule, 110);
 }
 
 function treeStep() {
@@ -1304,55 +1342,100 @@ function treeStep() {
   }
 }
 
+// Fits the whole tree into the visible area (below the header, above the
+// footer) so a screenshot always captures everything. Interpolated so
+// zoom/pan glides smoothly as new nodes arrive instead of jumping.
+function updateCamera() {
+  let scale = 1.1, cx = canvasW / 2, cy = canvasH / 2;
+  if (treeNodes.length) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of treeNodes) {
+      minX = Math.min(minX, p.x - p.r); maxX = Math.max(maxX, p.x + p.r);
+      minY = Math.min(minY, p.y - p.r - 20); maxY = Math.max(maxY, p.y + p.r);
+    }
+    const boxW = Math.max(maxX - minX, 30), boxH = Math.max(maxY - minY, 30);
+    const availW = canvasW - CAM_PAD_SIDE * 2, availH = canvasH - CAM_PAD_TOP - CAM_PAD_BOTTOM;
+    scale = Math.max(0.32, Math.min(Math.min(availW / boxW, availH / boxH), 1.6));
+    cx = (minX + maxX) / 2; cy = (minY + maxY) / 2;
+  }
+  camScale += (scale - camScale) * 0.07;
+  camCX += (cx - camCX) * 0.07;
+  camCY += (cy - camCY) * 0.07;
+}
+function camScreenCY() { return CAM_PAD_TOP + (canvasH - CAM_PAD_TOP - CAM_PAD_BOTTOM) / 2; }
+function screenToWorld(x, y) {
+  return { x: (x - canvasW / 2) / camScale + camCX, y: (y - camScreenCY()) / camScale + camCY };
+}
+
 function treeDraw() {
   if (!ctxEl) return;
   const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const now = performance.now();
   ctxEl.clearRect(0, 0, canvasW, canvasH);
+  ctxEl.save();
+  ctxEl.translate(canvasW / 2, camScreenCY());
+  ctxEl.scale(camScale, camScale);
+  ctxEl.translate(-camCX, -camCY);
+
   for (const e of treeEdges) {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
     ctxEl.strokeStyle = dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)";
-    ctxEl.lineWidth = e.kind === "trunk" ? 1.4 : 1;
+    ctxEl.lineWidth = (e.kind === "trunk" ? 1.4 : 1) / camScale;
     ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
   }
   for (const p of treeNodes) {
+    const ease = Math.min(1, 1 - Math.pow(1 - Math.min((now - p.bornAt) / POP_MS, 1), 3));
+    const isHovered = p === hoveredNode;
+    ctxEl.globalAlpha = ease;
     ctxEl.beginPath();
-    ctxEl.shadowBlur = p.isRoot ? 22 : p.isHub ? 13 : p.isTrunk ? 9 : 5;
+    ctxEl.shadowBlur = (p.isRoot ? 22 : p.isHub ? 13 : p.isTrunk ? 9 : 5) + (isHovered ? 10 : 0);
     ctxEl.shadowColor = `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .85)`;
     ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
-    ctxEl.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctxEl.arc(p.x, p.y, p.r * ease, 0, Math.PI * 2);
     ctxEl.fill();
+    if (isHovered) {
+      ctxEl.lineWidth = 2 / camScale;
+      ctxEl.strokeStyle = dark ? "#fff" : "#16132A";
+      ctxEl.stroke();
+    }
     ctxEl.shadowBlur = 0;
+    ctxEl.globalAlpha = 1;
   }
   ctxEl.textAlign = "center";
   for (const p of treeNodes) {
     if (!p.isHub && !p.isRoot) continue;
+    const ease = Math.min(1, (now - p.bornAt) / POP_MS);
+    ctxEl.globalAlpha = ease;
     ctxEl.font = (p.isRoot ? "700 13px " : "700 11px ") + "Outfit, system-ui, sans-serif";
     ctxEl.fillStyle = dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)";
     ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
+    ctxEl.globalAlpha = 1;
   }
+  ctxEl.restore();
 }
 
-let treeRAFStarted = false;
 function treeLoop() {
   if (document.getElementById("screen-intro")?.classList.contains("active")) {
-    treeStep(); treeDraw();
+    treeStep(); updateCamera(); treeDraw();
   }
   requestAnimationFrame(treeLoop);
 }
 
 function pickTreeNode(x, y) {
-  let best = null, bestD = 16;
+  let best = null, bestD = 16 / camScale;
   for (const p of treeNodes) {
     const d = Math.hypot(p.x - x, p.y - y);
-    if (d < Math.max(p.r + 6, bestD)) { best = p; bestD = d; }
+    if (d < Math.max(p.r + 6 / camScale, bestD)) { best = p; bestD = d; }
   }
   return best;
 }
 function treePointer(e) {
   const t = e.touches ? e.touches[0] : e;
   const rect = canvasEl.getBoundingClientRect();
-  return { x: t.clientX - rect.left, y: t.clientY - rect.top, clientX: t.clientX, clientY: t.clientY };
+  const sx = t.clientX - rect.left, sy = t.clientY - rect.top;
+  const w = screenToWorld(sx, sy);
+  return { x: w.x, y: w.y, clientX: t.clientX, clientY: t.clientY };
 }
 function wireTreeInteraction() {
   const tooltip = document.getElementById("graph-tooltip");
@@ -1371,12 +1454,19 @@ function wireTreeInteraction() {
       if (e.cancelable) e.preventDefault();
     }
     const hover = dragNode || pickTreeNode(x, y);
-    if (hover) {
+    // Hub/root nodes already show a permanent label — highlight them
+    // instead of popping a redundant tooltip with the same text.
+    if (hover && (hover.isHub || hover.isRoot)) {
+      hoveredNode = hover;
+      tooltip.style.opacity = "0";
+    } else if (hover) {
+      hoveredNode = null;
       tooltip.textContent = hover.label;
       tooltip.style.left = clientX + "px";
       tooltip.style.top = clientY + "px";
       tooltip.style.opacity = "1";
     } else {
+      hoveredNode = null;
       tooltip.style.opacity = "0";
     }
   }
@@ -1399,7 +1489,7 @@ function wireTreeInteraction() {
 function randomizeLook() {
   hueJitter = Math.random() * 30 - 15;
   treePhysics = randomTreePhysics();
-  rebuildTree();
+  rebuildTreeAnimated();
 }
 
 // ── Graph screen state (CTA + status pill) ──────────────────────────────
@@ -1424,7 +1514,8 @@ function onGraphCta() {
   if (next) openPreviewSheet(next);
 }
 function renderGraphScreen() {
-  rebuildTree();
+  if (hasShownTreeOnce) rebuildTreeInstant();
+  else rebuildTreeAnimated();
   updateGraphStatus();
 }
 
