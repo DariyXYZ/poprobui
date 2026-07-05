@@ -84,10 +84,11 @@ async def handle_web_app_data(message: Message):
     scores = data.get("scores")
     if not scores:
         return
+    test_id = data.get("test_id", "ddo")
     processing = await message.answer("⏳ Генерируем PDF...")
     try:
         from pdf import generate_pdf
-        pdf_path = await generate_pdf(message.message_id, message.from_user.id, scores)
+        pdf_path = await generate_pdf(message.message_id, message.from_user.id, scores, test_id)
         await bot.send_document(
             message.chat.id,
             FSInputFile(pdf_path, filename="poprobui_report.pdf"),

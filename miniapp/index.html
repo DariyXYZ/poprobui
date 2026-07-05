@@ -654,6 +654,7 @@ let resultId = null;
 let resultScores = null;
 let resultTopTypes = [];
 let resultRecommendations = [];
+let resultTestId = "ddo";
 
 // ── Test definitions ─────────────────────────────────────────────────────
 const TESTS = {
@@ -860,6 +861,7 @@ document.getElementById("btn-next").addEventListener("click", () => {});
 // ── Submit & Results ─────────────────────────────────────────────────────
 async function submitAnswers() {
   showScreen("screen-loading");
+  resultTestId = selectedTest;
   // last question label
   document.getElementById("btn-next").textContent = "Далее →";
 
@@ -969,7 +971,7 @@ function downloadPDF() {
   if (!tg) { alert("Открой этот тест через бота в Telegram — иначе PDF не отправить"); return; }
   if (!resultScores) { tg.showAlert("Результаты не найдены — пройди тест заново"); return; }
   try {
-    tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
+    tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes, test_id: resultTestId }));
   } catch(e) {
     console.error("sendData failed:", e);
     tg.showAlert("Вернись в чат с ботом и открой тест через кнопку «🧭 Пройти тест» или «📊 Результаты» — тогда PDF придёт сюда");
@@ -1138,6 +1140,7 @@ function viewHistoryResult(i) {
   const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
   const r = history[i]; if (!r) return;
   resultScores = r.scores; resultTopTypes = r.top_types; resultRecommendations = r.recommendations || [];
+  resultTestId = r.test_id || "ddo"; selectedTest = resultTestId;
   renderResults({ scores: r.scores, top_types: r.top_types, recommendations: r.recommendations });
   showScreen("screen-results");
 }
@@ -1146,6 +1149,7 @@ function pdfHistoryResult(i) {
   const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
   const r = history[i]; if (!r) return;
   resultScores = r.scores; resultTopTypes = r.top_types; resultRecommendations = r.recommendations || [];
+  resultTestId = r.test_id || "ddo"; selectedTest = resultTestId;
   downloadPDF();
 }
 
