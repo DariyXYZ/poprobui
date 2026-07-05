@@ -98,7 +98,12 @@ async def handle_web_app_data(message: Message):
         )
         await processing.delete()
     except Exception as e:
-        await processing.edit_text(f"Ошибка генерации PDF: {e}")
+        import traceback
+        traceback.print_exc()
+        await processing.edit_text(
+            f"⚠️ Не удалось сгенерировать PDF.\n\nПопробуй ещё раз — нажми кнопку «📊 Результаты» внизу и затем «📨 Получить PDF в Telegram».\n\n<code>{type(e).__name__}: {e}</code>",
+            parse_mode="HTML"
+        )
 
 
 @dp.message(Command("menu"))

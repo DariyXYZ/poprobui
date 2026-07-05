@@ -556,10 +556,12 @@ function renderResults(data) {
 
 function downloadPDF() {
   if (!tg) { alert("Открой в Telegram"); return; }
+  if (!resultScores) { tg.showAlert("Результаты не найдены. Пройди тест заново."); return; }
   try {
     tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
   } catch(e) {
-    tg.showAlert("Открой тест через кнопку «🧭 Пройти тест» или «📊 Мои результаты» внизу чата — тогда PDF придёт прямо в Telegram.");
+    console.error("sendData failed:", e);
+    tg.showAlert("Открой тест через кнопку «🧭 Пройти тест» или «📊 Результаты» внизу чата — тогда PDF придёт прямо в Telegram.");
   }
 }
 function _downloadPDF_unused() {
