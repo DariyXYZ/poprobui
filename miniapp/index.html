@@ -414,6 +414,92 @@
   }
   .tier-upgrade-box-btn:active { background: rgba(91,84,238,.2); }
 
+  /* ── Graph screen ── */
+  .graph-screen { padding: 0; position: relative; overflow: hidden; }
+  #tree-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #tree-canvas.dragging { cursor: grabbing; }
+  .graph-header {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 22px 20px 0;
+    text-align: center;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .graph-title { font-size: 21px; margin-bottom: 0; }
+  .graph-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 5px 12px;
+    border-radius: 99px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text2);
+  }
+  .icon-btn-mini {
+    position: absolute;
+    top: 22px; right: 20px;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text2);
+    font-size: 16px;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: manipulation;
+    z-index: 3;
+  }
+  .icon-btn-mini:active { opacity: .7; }
+  .graph-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 8px;
+    transform: translate(-50%, -140%);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity .1s ease;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+
+  /* ── Bottom sheet ── */
+  .sheet-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    display: flex; align-items: flex-end;
+    z-index: 200;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .sheet-overlay.active { opacity: 1; pointer-events: auto; }
+  .sheet {
+    background: var(--bg);
+    width: 100%;
+    border-radius: 20px 20px 0 0;
+    padding: 10px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform .25s cubic-bezier(.32,.72,0,1);
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+  .sheet-overlay.active .sheet { transform: translateY(0); }
+  .sheet-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 99px;
+    margin: 6px auto 16px;
+  }
+
   /* ── Buttons ── */
   .btn {
     display: block;
@@ -518,66 +604,25 @@
 </head>
 <body>
 
-<!-- ── Screen: Intro ───────────────────────────────────────────────────── -->
-<div id="screen-intro" class="screen active">
-  <div class="intro-eyebrow">Профориентация</div>
-  <div class="intro-title">Попробуй<span>.</span></div>
-  <p class="intro-sub">Узнай, какие профессии подходят именно тебе — честно и без воды</p>
-
-  <div class="test-cards" id="test-cards">
-    <div class="test-card selected" data-test="ddo" onclick="selectTest(this)">
-      <div class="tier-icon-badge">⚡</div>
-      <div class="tier-body">
-        <div class="tier-head-row">
-          <span class="tier-name">Экспресс</span>
-          <span class="tier-price-tag">100 ₽</span>
-        </div>
-        <div class="tier-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
-        <div class="tier-feats">
-          <div class="tier-feat">5 типов профессий по Климову</div>
-          <div class="tier-feat">ТОП-6 профессий под твой профиль</div>
-          <div class="tier-feat">Зарплатный диапазон + PDF в Telegram</div>
-        </div>
-      </div>
-      <div class="tier-radio">✓</div>
-    </div>
-    <div class="test-card" data-test="yovayshi" onclick="selectTest(this)">
-      <div class="tier-icon-badge">🔍</div>
-      <div class="tier-body">
-        <div class="tier-head-row">
-          <span class="tier-name">Стандарт</span>
-          <span class="tier-price-tag">200 ₽</span>
-        </div>
-        <div class="tier-meta">Йовайши · 24 вопроса · ~12 мин</div>
-        <div class="tier-feats">
-          <div class="tier-feat">6 профессиональных склонностей</div>
-          <div class="tier-feat">Непрямые вопросы — точнее результат</div>
-          <div class="tier-feat">8 профессий с зарплатами</div>
-        </div>
-      </div>
-      <div class="tier-radio"></div>
-    </div>
-    <div class="test-card" data-test="onett" onclick="selectTest(this)">
-      <div class="tier-icon-badge">🌐</div>
-      <div class="tier-body">
-        <div class="tier-head-row">
-          <span class="tier-name">Полный</span>
-          <span class="tier-price-tag">300 ₽</span>
-        </div>
-        <div class="tier-meta">O*NET RIASEC · 60 вопросов · ~20 мин</div>
-        <div class="tier-feats">
-          <div class="tier-feat">Профиль по 6 направлениям RIASEC</div>
-          <div class="tier-feat">ТОП-10 профессий с зарплатами</div>
-          <div class="tier-feat">Методика Минтруда США (O*NET)</div>
-        </div>
-      </div>
-      <div class="tier-radio"></div>
-    </div>
+<!-- ── Screen: Intro (граф-пространство) ──────────────────────────────── -->
+<div id="screen-intro" class="screen graph-screen active">
+  <canvas id="tree-canvas"></canvas>
+  <div class="graph-tooltip" id="graph-tooltip"></div>
+  <div class="graph-header">
+    <div class="intro-eyebrow">Попробуй</div>
+    <div class="intro-title graph-title">Твоя карта интересов</div>
+    <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
+  <button class="icon-btn-mini" id="btn-randomize" onclick="randomizeLook()" title="Другой вариант карты">⟳</button>
 
   <div class="btn-footer">
-    <button class="btn btn-primary" onclick="startTest()">Начать тест →</button>
+    <button class="btn btn-primary" id="graph-cta" onclick="onGraphCta()">Начать бесплатно →</button>
   </div>
+</div>
+
+<!-- ── Bottom sheet (превью теста / результат) ────────────────────────── -->
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet(event)">
+  <div class="sheet" id="sheet-body" onclick="event.stopPropagation()"></div>
 </div>
 
 <!-- ── Screen: Test ────────────────────────────────────────────────────── -->
@@ -623,7 +668,7 @@
 
   <div class="btn-footer">
     <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
-    <button class="btn btn-secondary" onclick="showScreen('screen-intro')">Пройти другой тест</button>
+    <button class="btn btn-secondary" onclick="showScreen('screen-intro'); renderGraphScreen();">← Смотреть карту</button>
   </div>
 </div>
 
@@ -767,14 +812,32 @@ function showScreen(id) {
   document.getElementById(id).classList.add("active");
 }
 
-function selectTest(card) {
-  document.querySelectorAll(".test-card").forEach(c => {
-    c.classList.remove("selected");
-    c.querySelector(".tier-radio").textContent = "";
-  });
-  card.classList.add("selected");
-  card.querySelector(".tier-radio").textContent = "✓";
-  selectedTest = card.dataset.test;
+// ── Test sequence & tier metadata ───────────────────────────────────────
+const TEST_SEQUENCE = ["ddo", "yovayshi", "onett"];
+const TEST_META = {
+  ddo: { icon: "⚡", name: "Экспресс", price: "Бесплатно", meta: "ДДО Климова · 20 вопросов · ~10 мин",
+    feats: ["5 типов профессий по Климову", "ТОП-6 профессий под твой профиль", "Зарплатный диапазон + PDF в Telegram"] },
+  yovayshi: { icon: "🔍", name: "Стандарт", price: "200 ₽", meta: "Йовайши · 24 вопроса · ~12 мин",
+    feats: ["6 профессиональных склонностей", "Непрямые вопросы — точнее результат", "8 профессий с зарплатами"] },
+  onett: { icon: "🌐", name: "Полный", price: "300 ₽", meta: "O*NET RIASEC · 60 вопросов · ~20 мин",
+    feats: ["Профиль по 6 направлениям RIASEC", "ТОП-10 профессий с зарплатами", "Методика Минтруда США (O*NET)"] },
+};
+
+function loadTree() {
+  try { return JSON.parse(localStorage.getItem("poprobui_tree") || "{}"); } catch (e) { return {}; }
+}
+function saveTreeResult(testId, scores, topTypes) {
+  const tree = loadTree();
+  tree[testId] = { scores, top_types: topTypes };
+  localStorage.setItem("poprobui_tree", JSON.stringify(tree));
+}
+function completedTests() {
+  const tree = loadTree();
+  return TEST_SEQUENCE.filter(id => tree[id]);
+}
+function nextTestId() {
+  const done = completedTests();
+  return TEST_SEQUENCE.find(id => !done.includes(id)) || null;
 }
 
 function startTest() {
@@ -877,19 +940,30 @@ async function submitAnswers() {
     });
     const data = await res.json();
     resultId = data.result_id;
-    resultScores = data.scores;
-    renderResults(data);
-    saveToHistory(selectedTest, data.scores, data.top_types, data.recommendations);
-    showScreen("screen-results");
+    handleTestComplete(data);
   } catch(e) {
     // offline fallback — local scoring
     const scores = localScore();
     const topTypes = Object.keys(scores).sort((a,b)=>scores[b]-scores[a]).slice(0,3);
-    resultScores = scores;
-    renderResults({ scores, top_types: topTypes, recommendations: [] });
-    saveToHistory(selectedTest, scores, topTypes, []);
-    showScreen("screen-results");
+    handleTestComplete({ scores, top_types: topTypes, recommendations: [] });
   }
+}
+
+// Called once a test is scored (server or offline). Persists into history +
+// the tree, then returns to the graph screen and grows the new branch in
+// with the staged reveal animation before showing the result sheet.
+function handleTestComplete(data) {
+  resultScores = data.scores;
+  resultTopTypes = data.top_types;
+  resultRecommendations = data.recommendations || [];
+  saveToHistory(selectedTest, data.scores, data.top_types, data.recommendations);
+
+  showScreen("screen-intro");
+  rebuildTree(); // rebuild from what was already saved, instantly (no animation)
+  saveTreeResult(selectedTest, data.scores, data.top_types);
+  updateGraphStatus();
+  growBranch(selectedTest, { scores: data.scores, top_types: data.top_types }, TEST_SEQUENCE.indexOf(selectedTest), false);
+  setTimeout(() => openResultSheet(selectedTest, data), 400);
 }
 
 function renderResults(data) {
@@ -963,8 +1037,8 @@ function renderResults(data) {
 
 function goToTier(testId) {
   showScreen("screen-intro");
-  const card = document.querySelector(`.test-card[data-test="${testId}"]`);
-  if (card) selectTest(card);
+  renderGraphScreen();
+  openPreviewSheet(testId);
 }
 
 function downloadPDF() {
@@ -1084,6 +1158,347 @@ const PROF_RICH = {
   "C — Конвенциональный":{ emoji:"📋", salary:"65 000 – 280 000 ₽", description:"Порядок, точность, системность, данные и документы", profs:["Бухгалтер","Аналитик","Программист","Логист","Финансист","Администратор","Архивист"] },
 };
 
+// ── Neurocard: single-tree force-directed graph (canvas, no dependencies) ──
+// One root ("Ты") with a branch per completed test; hubs are that test's
+// scale scores, leaves are matched professions for the top-scoring hub.
+// Attraction along edges (spring) + repulsion between all nodes (Coulomb-like)
+// + gentle centering, integrated every frame — same shape as Obsidian's graph.
+const ROOT_ID = "__root__";
+const BRANCH_HUES = [172, 322, 42]; // teal / magenta / amber, one per test slot
+
+let treeNodes = [], treeEdges = [], treeNodeById = new Map();
+let treePhysics = randomTreePhysics();
+let hueJitter = Math.random() * 30 - 15;
+let canvasEl, ctxEl, canvasW = 0, canvasH = 0;
+let dragNode = null, downNode = null, moveDist = 0;
+
+function randomTreePhysics() {
+  return {
+    repel: 2200 + Math.random() * 1400,
+    spring: 0.010 + Math.random() * 0.010,
+    restTrunk: 60 + Math.random() * 30,
+    restHub: 50 + Math.random() * 30,
+    restSat: 26 + Math.random() * 16,
+    damping: 0.85 + Math.random() * 0.03,
+  };
+}
+
+function initTreeCanvas() {
+  canvasEl = document.getElementById("tree-canvas");
+  if (!canvasEl) return;
+  ctxEl = canvasEl.getContext("2d");
+  resizeTreeCanvas();
+  window.addEventListener("resize", resizeTreeCanvas);
+  wireTreeInteraction();
+}
+function resizeTreeCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvasW = canvasEl.parentElement.clientWidth;
+  canvasH = canvasEl.parentElement.clientHeight;
+  canvasEl.width = canvasW * dpr; canvasEl.height = canvasH * dpr;
+  canvasEl.style.width = canvasW + "px"; canvasEl.style.height = canvasH + "px";
+  ctxEl.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function addTreeNode(n) { treeNodes.push(n); treeNodeById.set(n.id, n); }
+function spawnNear(parent, jitter, angle) {
+  const a = angle != null ? angle : Math.random() * Math.PI * 2;
+  const d = angle != null ? 55 : 6 + Math.random() * jitter;
+  return {
+    x: (parent ? parent.x : canvasW / 2) + Math.cos(a) * d,
+    y: (parent ? parent.y : canvasH / 2) + Math.sin(a) * d,
+  };
+}
+
+// Instant, unanimated rebuild from whatever's already saved in localStorage.
+function rebuildTree() {
+  treeNodes = []; treeEdges = []; treeNodeById = new Map();
+  const name = tg?.initDataUnsafe?.user?.first_name || "Ты";
+  addTreeNode({ id: ROOT_ID, label: name, x: canvasW / 2, y: canvasH / 2, vx: 0, vy: 0, r: 22, isRoot: true, hue: 250, sat: 65, light: 78, mass: 6 });
+  const tree = loadTree();
+  TEST_SEQUENCE.forEach((testId, idx) => {
+    if (tree[testId]) growBranch(testId, tree[testId], idx, true);
+  });
+}
+
+// Adds one test's branch (trunk → hubs → top-hub's profession leaves).
+// instant=true places everything immediately (page load); instant=false
+// staggers node-by-node so it visibly grows in, like Obsidian settling.
+function growBranch(testId, result, idx, instant) {
+  const hue = (BRANCH_HUES[idx % BRANCH_HUES.length] + hueJitter + 360) % 360;
+  const trunkId = "trunk::" + testId;
+  const angle = (idx / TEST_SEQUENCE.length) * Math.PI * 2 - Math.PI / 2;
+  const schedule = [];
+
+  schedule.push({ delay: 0, fn: () => {
+    const root = treeNodeById.get(ROOT_ID);
+    const p = spawnNear(root, 0, angle);
+    addTreeNode({ id: trunkId, label: TEST_META[testId].name, testId, x: p.x, y: p.y, vx: 0, vy: 0, r: 9, isTrunk: true, hue, sat: 45, light: 60, mass: 2 });
+    treeEdges.push({ a: ROOT_ID, b: trunkId, kind: "trunk" });
+  }});
+
+  const sorted = Object.entries(result.scores).sort((a, b) => b[1] - a[1]);
+  const maxScore = sorted[0]?.[1] || 1;
+  sorted.forEach(([label, score], i) => {
+    const hubId = testId + "::hub::" + label;
+    schedule.push({ delay: (i + 1) * (instant ? 0 : 90), fn: () => {
+      const trunk = treeNodeById.get(trunkId);
+      const p = spawnNear(trunk, 24, null);
+      addTreeNode({ id: hubId, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 10 + (score / maxScore) * 14, isHub: true, hue, sat: 68, light: 58, mass: 3 });
+      treeEdges.push({ a: trunkId, b: hubId, kind: "branch" });
+    }});
+  });
+
+  // profession leaves only for this test's top-scoring hub — keeps density readable
+  const topLabel = sorted[0]?.[0];
+  const hubId = testId + "::hub::" + topLabel;
+  const rich = PROF_RICH[topLabel] || {};
+  const limit = testId === "onett" ? 6 : testId === "yovayshi" ? 5 : 4;
+  const profs = (rich.profs || []).slice(0, limit);
+  const satBase = (sorted.length + 1) * (instant ? 0 : 90);
+  profs.forEach((label, i) => {
+    schedule.push({ delay: satBase + i * (instant ? 0 : 60), fn: () => {
+      const hub = treeNodeById.get(hubId);
+      const p = spawnNear(hub, 20, null);
+      addTreeNode({ id: hubId + "::" + label, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 4.5, isLeaf: true, hue, sat: 55, light: 46, mass: 1 });
+      treeEdges.push({ a: hubId, b: hubId + "::" + label, kind: "leaf" });
+    }});
+  });
+
+  schedule.forEach(item => instant ? item.fn() : setTimeout(item.fn, item.delay));
+}
+
+function treeStep() {
+  const n = treeNodes.length;
+  for (let i = 0; i < n; i++) {
+    const a = treeNodes[i];
+    if (a !== dragNode) {
+      for (let j = i + 1; j < n; j++) {
+        const b = treeNodes[j];
+        let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 < 4) d2 = 4;
+        const d = Math.sqrt(d2), f = treePhysics.repel / d2;
+        const fx = (dx / d) * f, fy = (dy / d) * f;
+        a.vx += fx / a.mass; a.vy += fy / a.mass;
+        if (b !== dragNode) { b.vx -= fx / b.mass; b.vy -= fy / b.mass; }
+      }
+      a.vx += (canvasW / 2 - a.x) * 0.0004;
+      a.vy += (canvasH / 2 - a.y) * 0.0004;
+    }
+  }
+  for (const e of treeEdges) {
+    const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
+    if (!a || !b) continue;
+    const rest = e.kind === "trunk" ? treePhysics.restTrunk : e.kind === "branch" ? treePhysics.restHub : treePhysics.restSat;
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.max(Math.sqrt(dx * dx + dy * dy), 0.01);
+    const f = treePhysics.spring * (d - rest);
+    const fx = (dx / d) * f, fy = (dy / d) * f;
+    if (a !== dragNode) { a.vx += fx / a.mass; a.vy += fy / a.mass; }
+    if (b !== dragNode) { b.vx -= fx / b.mass; b.vy -= fy / b.mass; }
+  }
+  for (const p of treeNodes) {
+    if (p === dragNode) continue;
+    p.vx *= treePhysics.damping; p.vy *= treePhysics.damping;
+    p.x += p.vx; p.y += p.vy;
+  }
+}
+
+function treeDraw() {
+  if (!ctxEl) return;
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  ctxEl.clearRect(0, 0, canvasW, canvasH);
+  for (const e of treeEdges) {
+    const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
+    if (!a || !b) continue;
+    ctxEl.strokeStyle = dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)";
+    ctxEl.lineWidth = e.kind === "trunk" ? 1.4 : 1;
+    ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
+  }
+  for (const p of treeNodes) {
+    ctxEl.beginPath();
+    ctxEl.shadowBlur = p.isRoot ? 22 : p.isHub ? 13 : p.isTrunk ? 9 : 5;
+    ctxEl.shadowColor = `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .85)`;
+    ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
+    ctxEl.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctxEl.fill();
+    ctxEl.shadowBlur = 0;
+  }
+  ctxEl.textAlign = "center";
+  for (const p of treeNodes) {
+    if (!p.isHub && !p.isRoot) continue;
+    ctxEl.font = (p.isRoot ? "700 13px " : "700 11px ") + "Outfit, system-ui, sans-serif";
+    ctxEl.fillStyle = dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)";
+    ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
+  }
+}
+
+let treeRAFStarted = false;
+function treeLoop() {
+  if (document.getElementById("screen-intro")?.classList.contains("active")) {
+    treeStep(); treeDraw();
+  }
+  requestAnimationFrame(treeLoop);
+}
+
+function pickTreeNode(x, y) {
+  let best = null, bestD = 16;
+  for (const p of treeNodes) {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < Math.max(p.r + 6, bestD)) { best = p; bestD = d; }
+  }
+  return best;
+}
+function treePointer(e) {
+  const t = e.touches ? e.touches[0] : e;
+  const rect = canvasEl.getBoundingClientRect();
+  return { x: t.clientX - rect.left, y: t.clientY - rect.top, clientX: t.clientX, clientY: t.clientY };
+}
+function wireTreeInteraction() {
+  const tooltip = document.getElementById("graph-tooltip");
+  function onDown(e) {
+    const { x, y } = treePointer(e);
+    downNode = pickTreeNode(x, y);
+    dragNode = downNode;
+    moveDist = 0;
+    if (dragNode) canvasEl.classList.add("dragging");
+  }
+  function onMove(e) {
+    const { x, y, clientX, clientY } = treePointer(e);
+    if (dragNode) {
+      moveDist += Math.hypot(x - dragNode.x, y - dragNode.y);
+      dragNode.x = x; dragNode.y = y; dragNode.vx = 0; dragNode.vy = 0;
+      if (e.cancelable) e.preventDefault();
+    }
+    const hover = dragNode || pickTreeNode(x, y);
+    if (hover) {
+      tooltip.textContent = hover.label;
+      tooltip.style.left = clientX + "px";
+      tooltip.style.top = clientY + "px";
+      tooltip.style.opacity = "1";
+    } else {
+      tooltip.style.opacity = "0";
+    }
+  }
+  function onUp() {
+    if (downNode && moveDist < 6 && downNode.testId) {
+      const next = nextTestId();
+      if (downNode.testId === next) openPreviewSheet(next);
+    }
+    dragNode = null; downNode = null;
+    canvasEl.classList.remove("dragging");
+  }
+  canvasEl.addEventListener("mousedown", onDown);
+  canvasEl.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+  canvasEl.addEventListener("touchstart", onDown, { passive: true });
+  canvasEl.addEventListener("touchmove", onMove, { passive: false });
+  window.addEventListener("touchend", onUp);
+}
+
+function randomizeLook() {
+  hueJitter = Math.random() * 30 - 15;
+  treePhysics = randomTreePhysics();
+  rebuildTree();
+}
+
+// ── Graph screen state (CTA + status pill) ──────────────────────────────
+function updateGraphStatus() {
+  const done = completedTests();
+  const next = nextTestId();
+  const cta = document.getElementById("graph-cta");
+  const statusEl = document.getElementById("graph-status");
+  if (!next) {
+    cta.textContent = "Все 3 теста пройдены ✓";
+    cta.onclick = () => {};
+    statusEl.textContent = "Дерево завершено — 3 из 3";
+  } else {
+    const meta = TEST_META[next];
+    cta.textContent = done.length ? `Продолжить: ${meta.name} · ${meta.price} →` : `Начать бесплатно: ${meta.name} →`;
+    cta.onclick = () => openPreviewSheet(next);
+    statusEl.textContent = done.length ? `${done.length} из 3 пройдено` : "Начни с бесплатного теста";
+  }
+}
+function onGraphCta() {
+  const next = nextTestId();
+  if (next) openPreviewSheet(next);
+}
+function renderGraphScreen() {
+  rebuildTree();
+  updateGraphStatus();
+}
+
+// ── Bottom sheet ─────────────────────────────────────────────────────────
+function showSheet() { document.getElementById("sheet-overlay").classList.add("active"); }
+function closeSheet(e) {
+  if (e && e.target.id !== "sheet-overlay") return;
+  document.getElementById("sheet-overlay").classList.remove("active");
+}
+
+function openPreviewSheet(testId) {
+  const meta = TEST_META[testId];
+  document.getElementById("sheet-body").innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="tier-head-row" style="align-items:flex-start;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="tier-icon-badge">${meta.icon}</div>
+        <div>
+          <div class="tier-name">${meta.name}</div>
+          <div class="tier-meta" style="margin-bottom:0">${meta.meta}</div>
+        </div>
+      </div>
+      <span class="tier-price-tag">${meta.price}</span>
+    </div>
+    <div class="tier-feats" style="margin-bottom:18px">
+      ${meta.feats.map(f => `<div class="tier-feat">${f}</div>`).join("")}
+    </div>
+    <button class="btn btn-primary" onclick="confirmStartTest('${testId}')">Начать тест →</button>
+  `;
+  showSheet();
+}
+function confirmStartTest(testId) {
+  closeSheet();
+  selectedTest = testId;
+  startTest();
+}
+
+function openResultSheet(testId, data) {
+  const { top_types } = data;
+  const topType = top_types[0];
+  const rich = PROF_RICH[topType] || {};
+  const limit = testId === "onett" ? 6 : testId === "yovayshi" ? 5 : 4;
+  const profs = (rich.profs || []).slice(0, limit);
+
+  let convergence = "";
+  if (completedTests().length === TEST_SEQUENCE.length) {
+    const tree = loadTree();
+    const tops = TEST_SEQUENCE.map(id => Object.entries(tree[id].scores).sort((a, b) => b[1] - a[1])[0][0]);
+    convergence = `<div class="tier-upgrade-box" style="border-style:solid">
+      <div class="tier-upgrade-box-text"><b>Все три теста пройдены.</b> Это твой независимый профиль сразу по трём методикам — ${tops.join(" · ")}.</div>
+    </div>`;
+  }
+
+  document.getElementById("sheet-body").innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="type-hero" style="margin-bottom:14px">
+      <div class="type-hero-head">
+        <div class="type-hero-icon">${rich.emoji || "🎯"}</div>
+        <div>
+          <div class="type-hero-name">${topType}</div>
+          <div class="type-hero-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
+        </div>
+      </div>
+      ${rich.salary ? `<div class="type-hero-salary">💰 ${rich.salary}</div>` : ""}
+      <div class="type-hero-profs-label">Подходящие профессии</div>
+      <div class="type-hero-profs">${profs.map(p => `<span class="type-hero-tag">${p}</span>`).join("")}</div>
+    </div>
+    ${convergence}
+    <button class="btn btn-primary" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="closeSheet()">Смотреть карту</button>
+  `;
+  showSheet();
+}
+
 // update last question button label
 function updateNextLabel() {
   const btn = document.getElementById("btn-next");
@@ -1162,11 +1577,21 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// ── URL params on load ────────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────────────────
+initTreeCanvas();
+renderGraphScreen();
+treeLoop();
+
+// ── URL params on load (e.g. after payment: ?screen=test&tier=onett&paid=1) ──
 (function() {
   const p = new URLSearchParams(window.location.search);
-  if (p.get("screen") === "results") { showHistory(); }
-  else if (p.get("screen") === "test") { startTest(); }
+  if (p.get("screen") === "results") {
+    showHistory();
+  } else if (p.get("screen") === "test") {
+    const tier = p.get("tier");
+    if (tier && TESTS[tier]) selectedTest = tier;
+    startTest();
+  }
 })();
 
 </script>
