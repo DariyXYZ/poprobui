@@ -315,6 +315,107 @@
     padding: 5px 13px;
   }
 
+  /* ── Tier pricing cards ── */
+  .tier-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .tier-price-tag {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 2px 10px;
+    border-radius: 99px;
+    margin-bottom: 5px;
+    display: inline-block;
+    letter-spacing: -.2px;
+  }
+  .test-card.selected .tier-price-tag {
+    background: rgba(255,255,255,.22);
+    color: #fff;
+  }
+  .tier-feats {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .test-card.selected .tier-feats { border-top-color: rgba(255,255,255,.2); }
+  .tier-feat {
+    font-size: 11.5px;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.4;
+  }
+  .tier-feat::before {
+    content: "✓";
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+    width: 12px;
+  }
+  .test-card.selected .tier-feat { color: rgba(255,255,255,.82); }
+  .test-card.selected .tier-feat::before { color: rgba(255,255,255,.9); }
+
+  /* ── Rich results ── */
+  .prof-type-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .prof-type-emoji { font-size: 30px; line-height: 1; flex-shrink: 0; }
+  .prof-type-label {
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .prof-type-desc { font-size: 12px; color: var(--text2); line-height: 1.4; }
+  .prof-salary {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tier-upgrade {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .tier-upgrade-text {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+  .tier-upgrade-btn {
+    background: none;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 99px;
+    padding: 7px 16px;
+    font-family: var(--font-head);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background .12s, color .12s;
+  }
+  .tier-upgrade-btn:active { background: var(--accent-dim); }
+
   /* ── Buttons ── */
   .btn {
     display: block;
@@ -429,28 +530,49 @@
 
   <div class="test-cards" id="test-cards">
     <div class="test-card selected" data-test="ddo" onclick="selectTest(this)">
-      <div class="card-icon">⚡</div>
-      <div class="card-info">
-        <div class="card-name">Экспресс-тест</div>
-        <div class="card-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
+      <div class="tier-top">
+        <div>
+          <div class="tier-price-tag">100 ₽</div>
+          <div class="card-name" style="margin-top:5px">Экспресс</div>
+          <div class="card-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
+        </div>
+        <div class="card-check">✓</div>
       </div>
-      <div class="card-check">✓</div>
+      <div class="tier-feats">
+        <div class="tier-feat">5 типов профессий по Климову</div>
+        <div class="tier-feat">ТОП-6 профессий конкретно для тебя</div>
+        <div class="tier-feat">Зарплатный диапазон + PDF в Telegram</div>
+      </div>
     </div>
     <div class="test-card" data-test="yovayshi" onclick="selectTest(this)">
-      <div class="card-icon">🔍</div>
-      <div class="card-info">
-        <div class="card-name">Склонности</div>
-        <div class="card-meta">Йовайши/Резапкина · 24 вопроса · ~12 мин</div>
+      <div class="tier-top">
+        <div>
+          <div class="tier-price-tag">200 ₽</div>
+          <div class="card-name" style="margin-top:5px">Стандарт</div>
+          <div class="card-meta">Йовайши · 24 вопроса · ~12 мин</div>
+        </div>
+        <div class="card-check"></div>
       </div>
-      <div class="card-check"></div>
+      <div class="tier-feats">
+        <div class="tier-feat">6 профессиональных склонностей</div>
+        <div class="tier-feat">Косвенные вопросы — честнее результат</div>
+        <div class="tier-feat">8 профессий + зарплаты по направлению</div>
+      </div>
     </div>
     <div class="test-card" data-test="onett" onclick="selectTest(this)">
-      <div class="card-icon">🌐</div>
-      <div class="card-info">
-        <div class="card-name">Международный RIASEC</div>
-        <div class="card-meta">O*NET · 60 вопросов · ~20 мин</div>
+      <div class="tier-top">
+        <div>
+          <div class="tier-price-tag">300 ₽</div>
+          <div class="card-name" style="margin-top:5px">Полный</div>
+          <div class="card-meta">O*NET RIASEC · 60 вопросов · ~20 мин</div>
+        </div>
+        <div class="card-check"></div>
       </div>
-      <div class="card-check"></div>
+      <div class="tier-feats">
+        <div class="tier-feat">Международный RIASEC-профиль (6 типов)</div>
+        <div class="tier-feat">ТОП-10 профессий с данными рынка</div>
+        <div class="tier-feat">Самый точный и глубокий анализ</div>
+      </div>
     </div>
   </div>
 
@@ -778,6 +900,10 @@ function renderResults(data) {
   const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
   const maxScore = sorted[0]?.[1] || 1;
 
+  // results subtitle per tier
+  const tierLabels = { ddo:"Профиль по Климову", yovayshi:"Профиль склонностей", onett:"RIASEC-профиль" };
+  document.getElementById("results-sub").textContent = tierLabels[selectedTest] || "Вот что мы узнали о тебе";
+
   // top cards
   const topHTML = top_types.slice(0, 3).map((name, i) => `
     <div class="top-card ${i===0?'first':''}">
@@ -800,14 +926,38 @@ function renderResults(data) {
   }).join("");
   document.getElementById("bars-wrap").innerHTML = barsHTML;
 
-  // professions
-  const profs = recommendations?.length
-    ? recommendations
-    : PROF_MAP[top_types[0]] || [];
-  document.getElementById("professions-block").innerHTML = `
-    <div class="prof-title">Подходящие профессии</div>
-    <div class="prof-list">${profs.slice(0,8).map(p=>`<span class="prof-tag">${p}</span>`).join("")}</div>
-  `;
+  // professions — rich version with tier-based depth
+  const topType = top_types[0];
+  const rich = PROF_RICH[topType] || {};
+  const tierLimit = selectedTest === "onett" ? 10 : selectedTest === "yovayshi" ? 8 : 6;
+  const profs = rich.profs || (recommendations?.length ? recommendations : PROF_MAP[topType] || []);
+
+  let html = `<div class="prof-type-head">
+    <span class="prof-type-emoji">${rich.emoji || "🎯"}</span>
+    <div>
+      <div class="prof-type-label">${topType}</div>
+      <div class="prof-type-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
+    </div>
+  </div>`;
+
+  if (rich.salary) html += `<div class="prof-salary">💰 Зарплаты в этой сфере: ${rich.salary}</div>`;
+
+  html += `<div class="prof-title" style="margin-bottom:8px">Подходящие профессии</div>
+  <div class="prof-list">${profs.slice(0, tierLimit).map(p => `<span class="prof-tag">${p}</span>`).join("")}</div>`;
+
+  if (selectedTest === "ddo") {
+    html += `<div class="tier-upgrade">
+      <div class="tier-upgrade-text">🔍 Тест «Стандарт» (200 ₽) выявит 6 глубинных склонностей через косвенные вопросы</div>
+      <button class="tier-upgrade-btn" onclick="showScreen('screen-intro')">Попробовать глубже →</button>
+    </div>`;
+  } else if (selectedTest === "yovayshi") {
+    html += `<div class="tier-upgrade">
+      <div class="tier-upgrade-text">🌐 Тест «Полный» (300 ₽) — международный RIASEC-профиль и 10 профессий с данными рынка</div>
+      <button class="tier-upgrade-btn" onclick="showScreen('screen-intro')">Попробовать полный тест →</button>
+    </div>`;
+  }
+
+  document.getElementById("professions-block").innerHTML = html;
 }
 
 function downloadPDF() {
@@ -887,6 +1037,29 @@ const PROF_MAP = {
   "Эстетика":   ["Дизайнер","Художник","Фотограф","Режиссёр","Актёр","Иллюстратор"],
   "Экстремал":  ["Спасатель","Военный","Спортсмен","Пилот","Путешественник"],
   "Планово-экон.":["Бухгалтер","Экономист","Финансист","Аналитик","Юрист","Редактор"],
+};
+
+const PROF_RICH = {
+  // ДДО Климова
+  "Природа":     { emoji:"🌿", salary:"40 000 – 180 000 ₽", description:"Работа с живыми организмами, экосистемами и природой", profs:["Агроном","Ветеринар","Биолог","Эколог","Геолог","Лесник","Зоолог"] },
+  "Техника":     { emoji:"⚙️", salary:"70 000 – 320 000 ₽", description:"Работа с машинами, устройствами и технологиями", profs:["Инженер","Программист","Электрик","Механик","Робототехник","Технолог"] },
+  "Человек":     { emoji:"👥", salary:"60 000 – 280 000 ₽", description:"Работа с людьми — общение, помощь, обучение, управление", profs:["Психолог","Врач","Педагог","HR-менеджер","Юрист","Менеджер","Медсестра"] },
+  "Знак":        { emoji:"📊", salary:"80 000 – 400 000 ₽", description:"Работа с информацией, числами, текстом, кодом и символами", profs:["Аналитик данных","Программист","Экономист","Бухгалтер","Переводчик","Математик"] },
+  "Образ":       { emoji:"🎨", salary:"60 000 – 250 000 ₽", description:"Работа с художественными образами и творческими идеями", profs:["Дизайнер","Художник","Режиссёр","Архитектор","UX-дизайнер","Иллюстратор"] },
+  // Йовайши/Резапкина
+  "Люди":        { emoji:"👥", salary:"60 000 – 280 000 ₽", description:"Коммуникация, помощь людям и работа в команде", profs:["Психолог","Педагог","Врач","Соцработник","Коуч","Тренер","Медиатор"] },
+  "Исследование":{ emoji:"🔬", salary:"80 000 – 300 000 ₽", description:"Анализ, наука, исследования, работа с данными", profs:["Data Scientist","Учёный","Аналитик","Биолог","Химик","Исследователь","Врач-диагност"] },
+  "Производство":{ emoji:"⚙️", salary:"65 000 – 200 000 ₽", description:"Создание вещей, монтаж, практическая работа руками", profs:["Инженер","Технолог","Механик","Строитель","Робототехник","Электромонтажник"] },
+  "Эстетика":    { emoji:"🎨", salary:"60 000 – 250 000 ₽", description:"Творчество, красота и художественное выражение", profs:["Дизайнер","Художник","Фотограф","Режиссёр","Актёр","Иллюстратор","Стилист"] },
+  "Экстремал":   { emoji:"⚡", salary:"55 000 – 200 000 ₽", description:"Физическая активность, риск, соревнование и движение", profs:["Спасатель","Военный","Спортсмен","Пилот","Инструктор","Пожарный","Детектив"] },
+  "Планово-экон.":{ emoji:"📈", salary:"70 000 – 320 000 ₽", description:"Планирование, учёт, анализ и системная структура", profs:["Бухгалтер","Экономист","Финансист","Аналитик","Юрист","Редактор","Логист"] },
+  // O*NET RIASEC
+  "R — Реалист":       { emoji:"🔧", salary:"60 000 – 250 000 ₽", description:"Практическая работа руками, инструменты и механизмы", profs:["Инженер","Механик","Технолог","Строитель","Электрик","Пилот","Сварщик"] },
+  "I — Исследователь": { emoji:"🔬", salary:"80 000 – 320 000 ₽", description:"Анализ и решение сложных интеллектуальных задач", profs:["Data Scientist","Биолог","Химик","Физик","Аналитик","Врач","Учёный"] },
+  "A — Художник":      { emoji:"🎨", salary:"60 000 – 280 000 ₽", description:"Творчество, создание нового, художественное мышление", profs:["Дизайнер","Режиссёр","Архитектор","Иллюстратор","UX-дизайнер","Писатель","Музыкант"] },
+  "S — Социальный":    { emoji:"👥", salary:"55 000 – 220 000 ₽", description:"Работа с людьми, помощь, обучение и поддержка", profs:["Педагог","Психолог","Врач","HR-менеджер","Соцработник","Коуч","Медсестра"] },
+  "E — Предприниматель":{ emoji:"💼", salary:"80 000 – 600 000 ₽", description:"Лидерство, продажи, убеждение и управление командой", profs:["Менеджер","Предприниматель","Маркетолог","Продюсер","Юрист","Брокер","PR-директор"] },
+  "C — Конвенциональный":{ emoji:"📋", salary:"65 000 – 280 000 ₽", description:"Порядок, точность, системность, данные и документы", profs:["Бухгалтер","Аналитик","Программист","Логист","Финансист","Администратор","Архивист"] },
 };
 
 // update last question button label

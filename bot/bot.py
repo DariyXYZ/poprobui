@@ -44,13 +44,10 @@ def kb_main() -> ReplyKeyboardMarkup:
 
 def kb_topup() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="299 ₽ — Базовый тест", callback_data="pay_299"),
-            InlineKeyboardButton(text="990 ₽ — Глубокий анализ", callback_data="pay_990"),
-        ],
-        [
-            InlineKeyboardButton(text="← Назад", callback_data="back_main")
-        ],
+        [InlineKeyboardButton(text="100 ₽ — Экспресс (ДДО · 10 мин)", callback_data="pay_100")],
+        [InlineKeyboardButton(text="200 ₽ — Стандарт (Склонности · 12 мин)", callback_data="pay_200")],
+        [InlineKeyboardButton(text="300 ₽ — Полный (RIASEC · 20 мин)", callback_data="pay_300")],
+        [InlineKeyboardButton(text="← Назад", callback_data="back_main")],
     ])
 
 
@@ -115,12 +112,13 @@ async def cmd_menu(message: Message):
 async def handle_how(message: Message):
     await message.answer(
         "📖 <b>Как работает Попробуй</b>\n\n"
-        "1. Нажми «🧭 Пройти тест» — откроется мини-апп прямо в Telegram\n\n"
-        "2. Ответь на вопросы — они проверяют интересы, склонности и способности\n\n"
-        "3. Нажми «📨 Получить PDF в Telegram» — отчёт придёт в этот чат\n\n"
+        "1. Нажми «🧭 Пройти тест» — мини-апп откроется прямо в Telegram\n\n"
+        "2. Выбери тариф и ответь на вопросы — от 10 до 20 минут\n\n"
+        "3. Нажми «📨 Получить PDF» — отчёт придёт в этот чат\n\n"
         "4. Поделись с родителями или учителем\n\n"
-        "<b>Базовый тест</b> — 299 ₽\n"
-        "<b>Глубокий анализ</b> — 990 ₽ (+ живой разбор с экспертом)",
+        "<b>Экспресс</b> — 100 ₽ · ДДО Климова · 20 вопросов · 5 типов профессий\n"
+        "<b>Стандарт</b> — 200 ₽ · Склонности · 24 вопроса · 6 склонностей + зарплаты\n"
+        "<b>Полный</b> — 300 ₽ · RIASEC O*NET · 60 вопросов · международный профиль + 10 профессий",
         parse_mode="HTML",
     )
 
@@ -135,38 +133,56 @@ async def handle_balance(message: Message):
     )
 
 
-@dp.callback_query(F.data == "pay_299")
-async def cb_pay_299(call: CallbackQuery):
+@dp.callback_query(F.data == "pay_100")
+async def cb_pay_100(call: CallbackQuery):
     if not YOOKASSA_PROVIDER_TOKEN:
         await call.answer("Платежи скоро будут подключены!", show_alert=True)
         return
     await bot.send_invoice(
         chat_id=call.from_user.id,
-        title="Базовый тест «Попробуй»",
-        description="Профориентационный тест + PDF-отчёт с профилем и профессиями",
-        payload="test_basic_299",
+        title="Экспресс «Попробуй»",
+        description="ДДО Климова — 20 вопросов · 5 типов профессий · PDF-отчёт",
+        payload="test_express_100",
         provider_token=YOOKASSA_PROVIDER_TOKEN,
         currency="RUB",
-        prices=[LabeledPrice(label="Базовый тест", amount=29900)],
-        start_parameter="pay_basic",
+        prices=[LabeledPrice(label="Экспресс-тест", amount=10000)],
+        start_parameter="pay_express",
     )
     await call.answer()
 
 
-@dp.callback_query(F.data == "pay_990")
-async def cb_pay_990(call: CallbackQuery):
+@dp.callback_query(F.data == "pay_200")
+async def cb_pay_200(call: CallbackQuery):
     if not YOOKASSA_PROVIDER_TOKEN:
         await call.answer("Платежи скоро будут подключены!", show_alert=True)
         return
     await bot.send_invoice(
         chat_id=call.from_user.id,
-        title="Глубокий анализ «Попробуй»",
-        description="Расширенный тест + PDF-отчёт + разбор с экспертом",
-        payload="test_deep_990",
+        title="Стандарт «Попробуй»",
+        description="Склонности Йовайши — 24 вопроса · 6 склонностей · зарплаты · PDF",
+        payload="test_standard_200",
         provider_token=YOOKASSA_PROVIDER_TOKEN,
         currency="RUB",
-        prices=[LabeledPrice(label="Глубокий анализ", amount=99000)],
-        start_parameter="pay_deep",
+        prices=[LabeledPrice(label="Стандартный тест", amount=20000)],
+        start_parameter="pay_standard",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "pay_300")
+async def cb_pay_300(call: CallbackQuery):
+    if not YOOKASSA_PROVIDER_TOKEN:
+        await call.answer("Платежи скоро будут подключены!", show_alert=True)
+        return
+    await bot.send_invoice(
+        chat_id=call.from_user.id,
+        title="Полный тест «Попробуй»",
+        description="O*NET RIASEC — 60 вопросов · международный профиль · ТОП-10 профессий · PDF",
+        payload="test_full_300",
+        provider_token=YOOKASSA_PROVIDER_TOKEN,
+        currency="RUB",
+        prices=[LabeledPrice(label="Полный тест", amount=30000)],
+        start_parameter="pay_full",
     )
     await call.answer()
 
@@ -179,10 +195,12 @@ async def pre_checkout(query: PreCheckoutQuery):
 @dp.message(F.successful_payment)
 async def payment_success(message: Message):
     payload = message.successful_payment.invoice_payload
-    if payload == "test_basic_299":
-        screen = "test&tier=basic"
+    if payload == "test_express_100":
+        screen = "test&tier=ddo"
+    elif payload == "test_standard_200":
+        screen = "test&tier=yovayshi"
     else:
-        screen = "test&tier=deep"
+        screen = "test&tier=onett"
     await message.answer(
         "✅ Оплата прошла! Открывай тест:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
