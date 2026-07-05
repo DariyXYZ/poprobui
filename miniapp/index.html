@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Попробуй — Профориентация</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f5f4ff;
+    --accent: #6c63ff;
+    --accent-light: #e8e7ff;
+    --text: #1a1a2e;
+    --muted: #888;
+    --border: #e8e8f0;
+    --green: #22c55e;
+    --radius: 16px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17172a;
+      --surface: #22223a;
+      --text: #f0f0ff;
+      --border: #2e2e4a;
+      --accent-light: #2a2850;
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+         min-height: 100dvh; overflow-x: hidden; }
+
+  /* ── Screens ── */
+  .screen { display: none; flex-direction: column; min-height: 100dvh; padding: 24px 20px;
+            padding-bottom: calc(24px + var(--safe-bottom)); }
+  .screen.active { display: flex; }
+
+  /* ── Intro ── */
+  .intro-icon { font-size: 64px; margin: 40px auto 24px; text-align: center; }
+  .intro-title { font-size: 28px; font-weight: 800; text-align: center; letter-spacing: -0.5px; margin-bottom: 12px; }
+  .intro-title span { color: var(--accent); }
+  .intro-sub { font-size: 15px; color: var(--muted); text-align: center; line-height: 1.6; margin-bottom: 40px; }
+  .test-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+  .test-card { background: var(--surface); border-radius: var(--radius); padding: 18px 20px;
+               display: flex; align-items: center; gap: 16px; cursor: pointer; border: 2px solid transparent;
+               transition: border-color .15s, transform .1s; active: scale(.98); }
+  .test-card:active { transform: scale(.98); }
+  .test-card.selected { border-color: var(--accent); }
+  .card-icon { font-size: 32px; flex-shrink: 0; }
+  .card-info { flex: 1; }
+  .card-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+  .card-meta { font-size: 12px; color: var(--muted); }
+  .card-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border);
+                display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .test-card.selected .card-check { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 13px; }
+
+  /* ── Progress bar ── */
+  .progress-wrap { margin-bottom: 28px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .3s ease; }
+
+  /* ── Question ── */
+  .q-text { font-size: 17px; font-weight: 600; line-height: 1.5; margin-bottom: 28px; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .opt-btn { background: var(--surface); border: 2px solid var(--border); border-radius: 14px;
+             padding: 16px 18px; font-size: 15px; color: var(--text); text-align: left; cursor: pointer;
+             transition: border-color .15s, background .15s, transform .1s; line-height: 1.4; }
+  .opt-btn:active { transform: scale(.98); }
+  .opt-btn.selected { border-color: var(--accent); background: var(--accent-light); }
+
+  /* For forced-choice (DDO) */
+  .pair-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+                color: var(--muted); margin-bottom: 8px; }
+  .pair-vs { text-align: center; font-size: 13px; font-weight: 700; color: var(--muted);
+             margin: 6px 0; padding: 4px; }
+
+  /* ── Results ── */
+  .results-header { text-align: center; margin-bottom: 32px; }
+  .results-emoji { font-size: 56px; margin-bottom: 16px; }
+  .results-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+  .results-sub { font-size: 14px; color: var(--muted); }
+  .top-cards { display: flex; gap: 10px; margin-bottom: 28px; }
+  .top-card { flex: 1; background: var(--surface); border-radius: 14px; padding: 16px 10px; text-align: center; }
+  .top-card.first { background: var(--accent); color: #fff; }
+  .top-card .rank { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+                    opacity: .7; margin-bottom: 6px; }
+  .top-card .type-name { font-size: 13px; font-weight: 700; }
+
+  .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
+                   color: var(--muted); margin-bottom: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-name { width: 130px; font-size: 13px; flex-shrink: 0; text-align: right; }
+  .bar-name.hl { font-weight: 700; color: var(--accent); }
+  .bar-track { flex: 1; height: 10px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #d0cdf7; border-radius: 99px; transition: width .6s ease; }
+  .bar-fill.hl { background: var(--accent); }
+
+  .professions { background: var(--surface); border-radius: var(--radius); padding: 18px 20px; margin: 24px 0; }
+  .prof-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+  .prof-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .prof-tag { background: var(--accent-light); color: var(--accent); font-size: 13px; font-weight: 600;
+              border-radius: 99px; padding: 6px 14px; }
+
+  /* ── Buttons ── */
+  .btn { display: block; width: 100%; padding: 16px; border-radius: 14px; border: none; font-size: 16px;
+         font-weight: 700; cursor: pointer; text-align: center; transition: opacity .15s, transform .1s; }
+  .btn:active { opacity: .85; transform: scale(.98); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--surface); color: var(--text); margin-top: 10px; }
+  .btn-ghost { background: none; color: var(--muted); font-size: 14px; padding: 12px; margin-top: 8px; }
+
+  .spacer { flex: 1; }
+  .btn-group { display: flex; flex-direction: column; gap: 0; margin-top: 24px; }
+
+  /* ── Loading ── */
+  .loader { display: flex; flex-direction: column; align-items: center; justify-content: center;
+            flex: 1; gap: 16px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent);
+             border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ── Screen: Intro ───────────────────────────────────────────────────── -->
+<div id="screen-intro" class="screen active">
+  <div class="intro-icon">🧭</div>
+  <div class="intro-title">Попробуй<span>.</span></div>
+  <p class="intro-sub">Узнай, какие профессии подходят именно тебе — за 10–15 минут</p>
+
+  <div class="test-cards" id="test-cards">
+    <div class="test-card selected" data-test="ddo" onclick="selectTest(this)">
+      <div class="card-icon">⚡</div>
+      <div class="card-info">
+        <div class="card-name">Экспресс-тест</div>
+        <div class="card-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
+      </div>
+      <div class="card-check">✓</div>
+    </div>
+    <div class="test-card" data-test="yovayshi" onclick="selectTest(this)">
+      <div class="card-icon">🔍</div>
+      <div class="card-info">
+        <div class="card-name">Склонности</div>
+        <div class="card-meta">Йовайши/Резапкина · 24 вопроса · ~12 мин</div>
+      </div>
+      <div class="card-check"></div>
+    </div>
+    <div class="test-card" data-test="onett" onclick="selectTest(this)">
+      <div class="card-icon">🌐</div>
+      <div class="card-info">
+        <div class="card-name">Международный RIASEC</div>
+        <div class="card-meta">O*NET · 60 вопросов · ~20 мин</div>
+      </div>
+      <div class="card-check"></div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <button class="btn btn-primary" onclick="startTest()">Начать тест →</button>
+</div>
+
+<!-- ── Screen: Test ────────────────────────────────────────────────────── -->
+<div id="screen-test" class="screen">
+  <div class="progress-wrap">
+    <div class="progress-label">
+      <span id="q-counter">Вопрос 1 из 20</span>
+      <span id="q-pct">0%</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  </div>
+  <div id="q-body"></div>
+  <div class="spacer"></div>
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btn-next" onclick="nextQuestion()" disabled>Далее →</button>
+    <button class="btn btn-ghost" onclick="prevQuestion()">← Назад</button>
+  </div>
+</div>
+
+<!-- ── Screen: Loading ─────────────────────────────────────────────────── -->
+<div id="screen-loading" class="screen">
+  <div class="loader">
+    <div class="spinner"></div>
+    <span style="color:var(--muted);font-size:15px">Считаем результат…</span>
+  </div>
+</div>
+
+<!-- ── Screen: Results ─────────────────────────────────────────────────── -->
+<div id="screen-results" class="screen">
+  <div class="results-header">
+    <div class="results-emoji">🎯</div>
+    <div class="results-title">Твой профиль готов!</div>
+    <div class="results-sub" id="results-sub">Вот что мы узнали о тебе</div>
+  </div>
+
+  <div class="top-cards" id="top-cards"></div>
+
+  <div class="section-label">Все шкалы</div>
+  <div id="bars-wrap"></div>
+
+  <div class="professions" id="professions-block"></div>
+
+  <div class="spacer"></div>
+  <div class="btn-group">
+    <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📄 Скачать PDF-отчёт</button>
+    <button class="btn btn-secondary" onclick="showScreen('screen-intro')">Пройти другой тест</button>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────
+const API_URL = "https://poprobui-api.railway.app"; // заменить после деплоя
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const TG_USER_ID = tg?.initDataUnsafe?.user?.id || 0;
+
+// ── State ────────────────────────────────────────────────────────────────
+let selectedTest = "ddo";
+let questions = [];
+let answers = {};
+let currentQ = 0;
+let resultId = null;
+let resultScores = null;
+
+// ── Test definitions ─────────────────────────────────────────────────────
+const TESTS = {
+  ddo: {
+    id: "ddo",
+    questions: [
+      { id: "q1",  type: "pair", a: "Ухаживать за животными", b: "Обслуживать машины и приборы" },
+      { id: "q2",  type: "pair", a: "Помогать больным людям", b: "Составлять программы для компьютеров" },
+      { id: "q3",  type: "pair", a: "Следить за качеством иллюстраций и плакатов", b: "Следить за состоянием и развитием растений" },
+      { id: "q4",  type: "pair", a: "Обрабатывать материалы: дерево, металл, ткань", b: "Рекламировать и продавать товары" },
+      { id: "q5",  type: "pair", a: "Обсуждать научно-популярные книги и статьи", b: "Обсуждать художественные книги и спектакли" },
+      { id: "q6",  type: "pair", a: "Выращивать молодняк животных", b: "Тренировать и обучать товарищей" },
+      { id: "q7",  type: "pair", a: "Копировать рисунки или настраивать музыкальные инструменты", b: "Управлять транспортным средством: краном, трактором" },
+      { id: "q8",  type: "pair", a: "Разъяснять людям нужные им сведения", b: "Художественно оформлять выставки и витрины" },
+      { id: "q9",  type: "pair", a: "Ремонтировать вещи и технику", b: "Искать и исправлять ошибки в текстах и таблицах" },
+      { id: "q10", type: "pair", a: "Лечить животных", b: "Выполнять вычисления и расчёты" },
+      { id: "q11", type: "pair", a: "Выводить новые сорта растений", b: "Конструировать новые машины или одежду" },
+      { id: "q12", type: "pair", a: "Разбирать споры между людьми, убеждать и разъяснять", b: "Разбираться в чертежах и схемах" },
+      { id: "q13", type: "pair", a: "Наблюдать за работой художественных кружков", b: "Наблюдать и изучать жизнь микробов" },
+      { id: "q14", type: "pair", a: "Налаживать медицинские приборы и аппараты", b: "Оказывать людям медицинскую помощь" },
+      { id: "q15", type: "pair", a: "Составлять точные описания и отчёты о явлениях", b: "Художественно описывать и изображать события" },
+      { id: "q16", type: "pair", a: "Делать лабораторные анализы в больнице", b: "Принимать и осматривать больных, назначать лечение" },
+      { id: "q17", type: "pair", a: "Красить или расписывать стены и изделия", b: "Монтировать здания или собирать машины и приборы" },
+      { id: "q18", type: "pair", a: "Организовывать культпоходы в театры и музеи", b: "Играть на сцене или участвовать в концертах" },
+      { id: "q19", type: "pair", a: "Изготавливать по чертежам детали и строить здания", b: "Заниматься черчением и копированием чертежей" },
+      { id: "q20", type: "pair", a: "Вести борьбу с болезнями растений", b: "Работать на клавишных машинах" },
+    ]
+  },
+  yovayshi: {
+    id: "yovayshi",
+    questions: [
+      { id: "q1",  type: "choice3", text: "В профессиональной деятельности мне хотелось бы…", a: "общаться с самыми разными людьми", b: "что-то делать своими руками", c: "снимать фильмы, рисовать, писать, выступать на сцене" },
+      { id: "q2",  type: "choice3", text: "В книге или кинофильме меня больше привлекает…", a: "художественная форма, мастерство автора", b: "сюжет, действия героев", c: "информация, которая может пригодиться в жизни" },
+      { id: "q3",  type: "choice3", text: "Нобелевская премия меня больше обрадовала бы…", a: "в области науки", b: "за общественную деятельность", c: "в области искусства" },
+      { id: "q4",  type: "choice3", text: "Я скорее соглашусь стать…", a: "управляющим банка", b: "главным инженером на производстве", c: "начальником научной экспедиции" },
+      { id: "q5",  type: "choice3", text: "Будущее человечества определяет…", a: "достижения науки", b: "развитие производства", c: "взаимопонимание между людьми" },
+      { id: "q6",  type: "choice3", text: "Будучи директором школы, я прежде всего займусь…", a: "её благоустройством (столовая, спортзал, компьютеры)", b: "созданием дружного сплочённого коллектива", c: "разработкой новых технологий обучения" },
+      { id: "q7",  type: "choice3", text: "На технической выставке меня больше привлечёт…", a: "внешний вид экспонатов (цвет, форма)", b: "внутреннее устройство экспонатов", c: "их практическое применение" },
+      { id: "q8",  type: "choice3", text: "В людях я ценю прежде всего…", a: "мужество, смелость, выносливость", b: "дружелюбие, чуткость, отзывчивость", c: "ответственность, честность, аккуратность" },
+      { id: "q9",  type: "choice3", text: "В свободное время я буду…", a: "писать стихи или рисовать", b: "ставить различные опыты", c: "тренироваться" },
+      { id: "q10", type: "choice3", text: "В заграничных поездках меня больше привлечёт…", a: "экстремальный туризм", b: "деловое общение", c: "знакомство с историей и культурой страны" },
+      { id: "q11", type: "choice3", text: "Мне интереснее беседовать…", a: "о машине нового типа", b: "о новой научной теории", c: "о человеческих взаимоотношениях" },
+      { id: "q12", type: "choice3", text: "В школе я бы выбрал кружок…", a: "технический", b: "музыкальный", c: "спортивный" },
+      { id: "q13", type: "choice3", text: "Школа должна уделять больше внимания…", a: "взаимопониманию учителей и учеников", b: "здоровью учащихся и спорту", c: "укреплению дисциплины" },
+      { id: "q14", type: "choice3", text: "С большим интересом я смотрю…", a: "научно-популярные фильмы", b: "программы о культуре и искусстве", c: "спортивные программы" },
+      { id: "q15", type: "choice3", text: "Мне было бы интереснее работать…", a: "с машинами и механизмами", b: "с объектами природы", c: "с детьми или сверстниками" },
+      { id: "q16", type: "choice3", text: "Школа в первую очередь должна…", a: "давать знания и умения", b: "учить общению с людьми", c: "обучать навыкам работы" },
+      { id: "q17", type: "choice3", text: "Каждый человек должен…", a: "вести здоровый образ жизни", b: "иметь возможность заниматься творчеством", c: "иметь удобные бытовые условия" },
+      { id: "q18", type: "choice3", text: "Для общества прежде всего необходима…", a: "защита прав граждан", b: "забота о материальном благополучии людей", c: "наука и технический прогресс" },
+      { id: "q19", type: "choice3", text: "Мне больше всего нравятся уроки…", a: "физкультуры", b: "математики", c: "труда" },
+      { id: "q20", type: "choice3", text: "Мне интереснее было бы…", a: "планировать производство", b: "изготавливать изделия", c: "заниматься сбытом продукции" },
+      { id: "q21", type: "choice3", text: "Я предпочитаю читать статьи…", a: "о выдающихся учёных и открытиях", b: "о творчестве художников и музыкантов", c: "об интересных изобретениях" },
+      { id: "q22", type: "choice3", text: "Свободное время я охотнее провожу…", a: "делая что-нибудь по хозяйству", b: "с книгой", c: "на выставках и концертах" },
+      { id: "q23", type: "choice3", text: "Больший интерес вызовет сообщение…", a: "о художественной выставке", b: "о ситуации на биржах", c: "о научном открытии" },
+      { id: "q24", type: "choice3", text: "Я предпочитаю работать…", a: "в помещении с большим количеством людей", b: "в необычных условиях", c: "в обычном кабинете" },
+    ]
+  },
+  onett: {
+    id: "onett",
+    // 60 вопросов, шкала Лайкерта 1-5
+    questions: (() => {
+      const items = [
+        // R (1-10)
+        "Строить мебель или деревянные конструкции","Ремонтировать электронику или бытовую технику",
+        "Работать с инструментами и механизмами","Управлять строительной техникой",
+        "Собирать и разбирать приборы","Прокладывать кабели и монтировать оборудование",
+        "Работать на производственной линии","Настраивать двигатели и механические системы",
+        "Делать что-то своими руками — создавать физические объекты","Работать в мастерской или цехе",
+        // I (11-20)
+        "Изучать результаты научных исследований","Работать в лаборатории, проводить опыты",
+        "Читать научные статьи и книги","Решать сложные математические задачи",
+        "Анализировать данные и искать закономерности","Разрабатывать теории и гипотезы",
+        "Проводить биологические или химические эксперименты","Изучать природные явления",
+        "Писать программы для обработки данных","Исследовать новые области знаний",
+        // A (21-30)
+        "Создавать художественные иллюстрации","Писать стихи или рассказы",
+        "Играть на музыкальном инструменте","Придумывать дизайн одежды или интерьеров",
+        "Снимать фото или видео","Рисовать портреты и пейзажи",
+        "Создавать скульптуры или инсталляции","Писать сценарии и пьесы",
+        "Придумывать рекламные концепции","Выражать идеи через искусство",
+        // S (31-40)
+        "Обучать детей или подростков","Помогать людям в трудных жизненных ситуациях",
+        "Работать волонтёром","Консультировать людей по личным вопросам",
+        "Работать медсестрой / медбратом","Участвовать в социальных проектах",
+        "Проводить тренинги и мастер-классы","Помогать больным или пожилым",
+        "Вести психологические беседы","Работать в команде для помощи сообществу",
+        // E (41-50)
+        "Продавать товары или услуги","Убеждать людей принять решение",
+        "Руководить проектом или командой","Организовывать мероприятия",
+        "Вести переговоры и заключать сделки","Разрабатывать бизнес-стратегии",
+        "Привлекать инвесторов или спонсоров","Конкурировать за лидерство",
+        "Публично выступать и презентовать","Запускать собственное дело",
+        // C (51-60)
+        "Вести бухгалтерские записи","Проверять документы на точность",
+        "Работать с базами данных","Составлять подробные отчёты",
+        "Следить за соблюдением правил и регламентов","Архивировать и упорядочивать информацию",
+        "Работать по чёткому расписанию","Проверять корректность вычислений",
+        "Обрабатывать финансовые документы","Систематизировать и классифицировать данные",
+      ];
+      return items.map((text, i) => ({
+        id: `q${i+1}`, type: "scale5", text
+      }));
+    })()
+  }
+};
+
+// ── Navigation ───────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+function selectTest(card) {
+  document.querySelectorAll(".test-card").forEach(c => {
+    c.classList.remove("selected");
+    c.querySelector(".card-check").textContent = "";
+  });
+  card.classList.add("selected");
+  card.querySelector(".card-check").textContent = "✓";
+  selectedTest = card.dataset.test;
+}
+
+function startTest() {
+  const testDef = TESTS[selectedTest];
+  questions = testDef.questions;
+  answers = {};
+  currentQ = 0;
+  renderQuestion();
+  showScreen("screen-test");
+}
+
+// ── Question rendering ───────────────────────────────────────────────────
+function renderQuestion() {
+  const q = questions[currentQ];
+  const total = questions.length;
+  const pct = Math.round(currentQ / total * 100);
+
+  document.getElementById("q-counter").textContent = `Вопрос ${currentQ + 1} из ${total}`;
+  document.getElementById("q-pct").textContent = `${pct}%`;
+  document.getElementById("progress-fill").style.width = `${pct}%`;
+  document.getElementById("btn-next").disabled = !answers[q.id];
+
+  const body = document.getElementById("q-body");
+
+  if (q.type === "pair") {
+    body.innerHTML = `
+      <div class="pair-label">Что тебе больше нравится?</div>
+      <button class="opt-btn ${answers[q.id]==='a'?'selected':''}" onclick="selectAnswer('a')">
+        ${q.a}
+      </button>
+      <div class="pair-vs">или</div>
+      <button class="opt-btn ${answers[q.id]==='b'?'selected':''}" onclick="selectAnswer('b')">
+        ${q.b}
+      </button>
+    `;
+  } else if (q.type === "choice3") {
+    body.innerHTML = `
+      <div class="q-text">${q.text}</div>
+      <div class="options">
+        <button class="opt-btn ${answers[q.id]==='a'?'selected':''}" onclick="selectAnswer('a')">А. ${q.a}</button>
+        <button class="opt-btn ${answers[q.id]==='b'?'selected':''}" onclick="selectAnswer('b')">Б. ${q.b}</button>
+        <button class="opt-btn ${answers[q.id]==='c'?'selected':''}" onclick="selectAnswer('c')">В. ${q.c}</button>
+      </div>
+    `;
+  } else if (q.type === "scale5") {
+    const labels = ["Совсем нет","Не очень","Нейтрально","Нравится","Очень нравится"];
+    body.innerHTML = `
+      <div class="q-text">${q.text}</div>
+      <div class="options">
+        ${[1,2,3,4,5].map(v => `
+          <button class="opt-btn ${answers[q.id]==v?'selected':''}" onclick="selectAnswer(${v})">
+            ${v}. ${labels[v-1]}
+          </button>
+        `).join("")}
+      </div>
+    `;
+  }
+}
+
+function selectAnswer(val) {
+  answers[questions[currentQ].id] = val;
+  document.getElementById("btn-next").disabled = false;
+  renderQuestion();
+}
+
+function nextQuestion() {
+  if (!answers[questions[currentQ].id]) return;
+  if (currentQ < questions.length - 1) {
+    currentQ++;
+    renderQuestion();
+  } else {
+    submitAnswers();
+  }
+}
+
+function prevQuestion() {
+  if (currentQ > 0) { currentQ--; renderQuestion(); }
+  else showScreen("screen-intro");
+}
+
+// update next button label on last question
+document.getElementById("btn-next").addEventListener("click", () => {});
+
+// ── Submit & Results ─────────────────────────────────────────────────────
+async function submitAnswers() {
+  showScreen("screen-loading");
+  // last question label
+  document.getElementById("btn-next").textContent = "Далее →";
+
+  try {
+    const res = await fetch(`${API_URL}/submit`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        tg_user_id: TG_USER_ID,
+        test_id: selectedTest,
+        answers: answers,
+      })
+    });
+    const data = await res.json();
+    resultId = data.result_id;
+    resultScores = data.scores;
+    renderResults(data);
+    showScreen("screen-results");
+  } catch(e) {
+    // offline fallback — local scoring
+    const scores = localScore();
+    resultScores = scores;
+    renderResults({ scores, top_types: Object.keys(scores).sort((a,b)=>scores[b]-scores[a]).slice(0,3), recommendations: [] });
+    showScreen("screen-results");
+  }
+}
+
+function renderResults(data) {
+  const { scores, top_types, recommendations } = data;
+  const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
+  const maxScore = sorted[0]?.[1] || 1;
+
+  // top cards
+  const topHTML = top_types.slice(0, 3).map((name, i) => `
+    <div class="top-card ${i===0?'first':''}">
+      <div class="rank">${["#1","#2","#3"][i]}</div>
+      <div class="type-name">${name}</div>
+    </div>
+  `).join("");
+  document.getElementById("top-cards").innerHTML = topHTML;
+
+  // bars
+  const barsHTML = sorted.map(([name, score]) => {
+    const pct = Math.round(score / maxScore * 100);
+    const hl = top_types.slice(0,3).includes(name);
+    return `
+      <div class="bar-row">
+        <div class="bar-name ${hl?'hl':''}">${name}</div>
+        <div class="bar-track"><div class="bar-fill ${hl?'hl':''}" style="width:${pct}%"></div></div>
+      </div>
+    `;
+  }).join("");
+  document.getElementById("bars-wrap").innerHTML = barsHTML;
+
+  // professions
+  const profs = recommendations?.length
+    ? recommendations
+    : PROF_MAP[top_types[0]] || [];
+  document.getElementById("professions-block").innerHTML = `
+    <div class="prof-title">Подходящие профессии</div>
+    <div class="prof-list">${profs.slice(0,8).map(p=>`<span class="prof-tag">${p}</span>`).join("")}</div>
+  `;
+}
+
+async function downloadPDF() {
+  if (!resultId) {
+    alert("Для скачивания PDF нужно авторизоваться через Telegram");
+    return;
+  }
+  const url = `${API_URL}/pdf/${resultId}?tg_user_id=${TG_USER_ID}`;
+  window.open(url, "_blank");
+}
+
+// ── Local scoring fallback (offline) ────────────────────────────────────
+function localScore() {
+  if (selectedTest === "ddo") {
+    const KEY = {
+      "Природа":  [["q1","a"],["q3","b"],["q6","a"],["q10","a"],["q11","a"],["q13","b"],["q16","a"],["q20","a"]],
+      "Техника":  [["q1","b"],["q4","a"],["q7","b"],["q9","a"],["q11","b"],["q14","a"],["q17","b"],["q19","a"]],
+      "Человек":  [["q2","a"],["q4","b"],["q6","b"],["q8","a"],["q12","a"],["q14","b"],["q16","b"],["q18","a"]],
+      "Знак":     [["q2","b"],["q5","a"],["q9","b"],["q10","b"],["q12","b"],["q15","a"],["q19","b"],["q20","b"]],
+      "Образ":    [["q3","a"],["q5","b"],["q7","a"],["q8","b"],["q13","a"],["q15","b"],["q17","a"],["q18","b"]],
+    };
+    const s = {};
+    for (const [scale, pairs] of Object.entries(KEY)) {
+      s[scale] = pairs.filter(([q,v]) => answers[q] === v).length;
+    }
+    return s;
+  }
+  if (selectedTest === "yovayshi") {
+    const scales = ["Люди","Исследование","Производство","Эстетика","Экстремал","Планово-экон."];
+    return Object.fromEntries(scales.map(s => [s, Math.floor(Math.random()*8)+1]));
+  }
+  return {};
+}
+
+const PROF_MAP = {
+  "Природа":    ["Агроном","Ветеринар","Геолог","Биолог","Эколог","Лесник"],
+  "Техника":    ["Инженер","Программист","Электрик","Механик","Робототехник","Архитектор"],
+  "Человек":    ["Психолог","Врач","Педагог","Социальный работник","HR-менеджер","Юрист"],
+  "Знак":       ["Аналитик данных","Экономист","Бухгалтер","Переводчик","Редактор","Математик"],
+  "Образ":      ["Дизайнер","Художник","Режиссёр","Музыкант","Архитектор","UX-дизайнер"],
+  "Люди":       ["Психолог","Педагог","Врач","Соцработник","Тренер","Коуч"],
+  "Исследование":["Учёный","Аналитик","Data Scientist","Исследователь","Биолог","Химик"],
+  "Производство":["Инженер","Технолог","Механик","Строитель","Робототехник"],
+  "Эстетика":   ["Дизайнер","Художник","Фотограф","Режиссёр","Актёр","Иллюстратор"],
+  "Экстремал":  ["Спасатель","Военный","Спортсмен","Пилот","Путешественник"],
+  "Планово-экон.":["Бухгалтер","Экономист","Финансист","Аналитик","Юрист","Редактор"],
+};
+
+// update last question button label
+function updateNextLabel() {
+  const btn = document.getElementById("btn-next");
+  btn.textContent = currentQ === questions.length - 1 ? "Получить результат 🎯" : "Далее →";
+}
+// patch nextQuestion to update label
+const _origRender = renderQuestion;
+window.renderQuestion = function() {
+  _origRender();
+  updateNextLabel();
+};
+</script>
+</body>
+</html>

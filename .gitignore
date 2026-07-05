@@ -1,0 +1,24 @@
+# Secrets — никогда не коммитить
+bot/.env
+api/.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# DB и отчёты — генерируются на сервере
+api/poprobui.db
+api/reports/
+
+# OS
+.DS_Store
+Thumbs.db
