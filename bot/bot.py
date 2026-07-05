@@ -30,17 +30,16 @@ dp = Dispatcher(storage=MemoryStorage())
 
 def kb_main() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🧭 Пройти тест",
-                              web_app=WebAppInfo(url=MINIAPP_URL))],
-        [InlineKeyboardButton(text="📊 Мои результаты",
-                              web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results"))],
         [InlineKeyboardButton(text="💳 Пополнить кошелёк", callback_data="topup")],
         [InlineKeyboardButton(text="ℹ️ Как это работает",  callback_data="how_it_works")],
     ])
 
 def kb_test() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=MINIAPP_URL))]],
+        keyboard=[
+            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=MINIAPP_URL))],
+            [KeyboardButton(text="📊 Мои результаты", web_app=WebAppInfo(url=f"{MINIAPP_URL}?screen=results"))],
+        ],
         resize_keyboard=True,
     )
 

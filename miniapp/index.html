@@ -124,8 +124,22 @@
   .btn-secondary { background: var(--surface); color: var(--text); margin-top: 10px; }
   .btn-ghost { background: none; color: var(--muted); font-size: 14px; padding: 12px; margin-top: 8px; }
 
-  .spacer { flex: 1; }
-  .btn-group { display: flex; flex-direction: column; gap: 0; margin-top: 24px; }
+  .spacer { display: none; }
+  .btn-group { display: none; }
+  .btn-footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 12px 20px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+  }
+  .screen.active .btn-footer { display: flex; }
+  .screen { padding-bottom: 120px; }
 
   /* ── History ── */
   .history-empty { text-align:center;color:var(--muted);font-size:15px;padding:48px 0; }
@@ -184,8 +198,9 @@
     </div>
   </div>
 
-  <div class="spacer"></div>
-  <button class="btn btn-primary" onclick="startTest()">Начать тест →</button>
+  <div class="btn-footer">
+    <button class="btn btn-primary" onclick="startTest()">Начать тест →</button>
+  </div>
 </div>
 
 <!-- ── Screen: Test ────────────────────────────────────────────────────── -->
@@ -198,8 +213,7 @@
     <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
   </div>
   <div id="q-body"></div>
-  <div class="spacer"></div>
-  <div class="btn-group">
+  <div class="btn-footer">
     <button class="btn btn-primary" id="btn-next" onclick="nextQuestion()" disabled>Далее →</button>
     <button class="btn btn-ghost" onclick="prevQuestion()">← Назад</button>
   </div>
@@ -232,8 +246,7 @@
 
   <div class="professions" id="professions-block"></div>
 
-  <div class="spacer"></div>
-  <div class="btn-group">
+  <div class="btn-footer">
     <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
     <button class="btn btn-secondary" onclick="showScreen('screen-intro')">Пройти другой тест</button>
   </div>
@@ -244,8 +257,9 @@
   <div style="font-size:24px;font-weight:800;margin-bottom:4px">Мои результаты</div>
   <div style="color:var(--muted);font-size:14px;margin-bottom:24px">История тестирований</div>
   <div id="history-list"></div>
-  <div class="spacer"></div>
-  <button class="btn btn-secondary" onclick="showScreen('screen-intro')">← К тестам</button>
+  <div class="btn-footer">
+    <button class="btn btn-secondary" onclick="showScreen('screen-intro')">← К тестам</button>
+  </div>
 </div>
 
 <script>
@@ -541,17 +555,14 @@ function renderResults(data) {
 }
 
 function downloadPDF() {
-  // Primary: send data to bot → bot generates and sends PDF
-  if (tg) {
-    try {
-      tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
-      return;
-    } catch(e) {
-      tg.showAlert("Закрой мини-апп и нажми кнопку «🧭 Пройти тест» внизу чата — тогда PDF придёт прямо в Telegram.");
-      return;
-    }
+  if (!tg) { alert("Открой в Telegram"); return; }
+  try {
+    tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes }));
+  } catch(e) {
+    tg.showAlert("Открой тест через кнопку «🧭 Пройти тест» или «📊 Мои результаты» внизу чата — тогда PDF придёт прямо в Telegram.");
   }
-  // Fallback: open in browser
+}
+function _downloadPDF_unused() {
   const payload = JSON.stringify({
     scores: resultScores,
     top_types: resultTopTypes,
@@ -665,7 +676,7 @@ function showHistory() {
         </div>
         <div class="hist-actions">
           <button class="hist-btn hist-btn-view" onclick="viewHistoryResult(${i})">Смотреть</button>
-          <button class="hist-btn hist-btn-pdf" onclick="pdfHistoryResult(${i})">Скачать PDF</button>
+          <button class="hist-btn hist-btn-pdf" onclick="pdfHistoryResult(${i})">📨 В Telegram</button>
         </div>
       </div>`).join("");
   }
