@@ -121,25 +121,7 @@
     touch-action: manipulation;
   }
   .test-card:active { opacity: .85; }
-  .test-card.selected { border-color: var(--accent); background: var(--accent-light); }
-  .card-icon { font-size: 28px; flex-shrink: 0; line-height: 1; }
-  .card-info { flex: 1; min-width: 0; }
-  .card-name { font-family: var(--font-head); font-size: 15px; font-weight: 700; margin-bottom: 2px; }
-  .card-meta { font-size: 12px; color: var(--muted); }
-  .card-check {
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    border: 1.5px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    font-size: 12px;
-    transition: background .15s, border-color .15s;
-  }
-  .test-card.selected .card-check {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-  }
+  .test-card.selected { border-color: var(--accent); background: var(--accent); }
 
   /* ── Progress ── */
   .progress-wrap { margin-bottom: 24px; }
@@ -289,69 +271,62 @@
   }
   .bar-fill.hl { background: var(--accent); }
 
-  .professions {
-    background: var(--surface);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    margin: 20px 0;
-    border: 1.5px solid var(--border);
-  }
-  .prof-title {
-    font-family: var(--font-head);
-    font-size: 13px;
-    font-weight: 700;
-    margin-bottom: 12px;
-    color: var(--text2);
-    text-transform: uppercase;
-    letter-spacing: .5px;
-  }
-  .prof-list { display: flex; flex-wrap: wrap; gap: 6px; }
-  .prof-tag {
-    background: var(--accent-dim);
-    color: var(--accent);
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 99px;
-    padding: 5px 13px;
-  }
-
   /* ── Tier pricing cards ── */
-  .tier-top {
+  .test-card {
+    position: relative;
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 8px;
+    gap: 14px;
+    padding: 16px;
   }
+  .tier-icon-badge {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--accent-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    flex-shrink: 0;
+    transition: background .15s ease;
+  }
+  .test-card.selected .tier-icon-badge { background: rgba(255,255,255,.22); }
+  .tier-body { flex: 1; min-width: 0; padding-right: 26px; }
+  .tier-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+  .tier-name {
+    font-family: var(--font-head);
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -.2px;
+  }
+  .test-card.selected .tier-name { color: #fff; }
   .tier-price-tag {
     font-family: var(--font-head);
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 800;
     color: var(--accent);
     background: var(--accent-dim);
-    padding: 2px 10px;
+    padding: 3px 10px;
     border-radius: 99px;
-    margin-bottom: 5px;
-    display: inline-block;
+    flex-shrink: 0;
     letter-spacing: -.2px;
   }
-  .test-card.selected .tier-price-tag {
-    background: rgba(255,255,255,.22);
-    color: #fff;
-  }
-  .tier-feats {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border);
-  }
-  .test-card.selected .tier-feats { border-top-color: rgba(255,255,255,.2); }
+  .test-card.selected .tier-price-tag { background: rgba(255,255,255,.26); color: #fff; }
+  .tier-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .test-card.selected .tier-meta { color: rgba(255,255,255,.78); }
+  .tier-feats { display: flex; flex-direction: column; gap: 4px; }
   .tier-feat {
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text2);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 6px;
     line-height: 1.4;
   }
@@ -361,60 +336,103 @@
     font-size: 10px;
     font-weight: 800;
     flex-shrink: 0;
-    width: 12px;
+    margin-top: 2px;
   }
-  .test-card.selected .tier-feat { color: rgba(255,255,255,.82); }
-  .test-card.selected .tier-feat::before { color: rgba(255,255,255,.9); }
+  .test-card.selected .tier-feat { color: rgba(255,255,255,.92); }
+  .test-card.selected .tier-feat::before { color: #fff; }
+  .tier-radio {
+    position: absolute;
+    top: 16px; right: 16px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    color: transparent;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s;
+  }
+  .test-card.selected .tier-radio { background: #fff; border-color: #fff; color: var(--accent); }
 
-  /* ── Rich results ── */
-  .prof-type-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
+  /* ── Results: type hero ── */
+  .type-hero {
+    background: var(--accent);
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 20px 18px;
+    margin-bottom: 20px;
   }
-  .prof-type-emoji { font-size: 30px; line-height: 1; flex-shrink: 0; }
-  .prof-type-label {
+  .type-hero-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .type-hero-icon {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 60px; height: 60px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.18);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .type-hero-name {
     font-family: var(--font-head);
-    font-size: 15px;
-    font-weight: 700;
-    margin-bottom: 2px;
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: -.3px;
+    margin-bottom: 3px;
   }
-  .prof-type-desc { font-size: 12px; color: var(--text2); line-height: 1.4; }
-  .prof-salary {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--green);
-    margin-bottom: 14px;
-    display: flex;
+  .type-hero-desc { font-size: 12.5px; color: rgba(255,255,255,.82); line-height: 1.45; }
+  .type-hero-salary {
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    background: rgba(255,255,255,.18);
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 12.5px;
+    font-weight: 700;
+    margin-bottom: 16px;
   }
-  .tier-upgrade {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-  }
-  .tier-upgrade-text {
-    font-size: 12px;
-    color: var(--text2);
+  .type-hero-profs-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: rgba(255,255,255,.65);
     margin-bottom: 8px;
-    line-height: 1.5;
   }
-  .tier-upgrade-btn {
+  .type-hero-profs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .type-hero-tag {
+    background: rgba(255,255,255,.16);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 99px;
+  }
+
+  /* ── Results: upgrade teaser ── */
+  .tier-upgrade-box {
+    background: var(--accent-light);
+    border: 1.5px dashed var(--accent);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .tier-upgrade-box-text { font-size: 12.5px; color: var(--text2); margin-bottom: 10px; line-height: 1.5; }
+  .tier-upgrade-box-btn {
     background: none;
     border: 1.5px solid var(--accent);
     color: var(--accent);
     border-radius: 99px;
-    padding: 7px 16px;
+    padding: 8px 18px;
     font-family: var(--font-head);
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 700;
     cursor: pointer;
     touch-action: manipulation;
     transition: background .12s, color .12s;
   }
-  .tier-upgrade-btn:active { background: var(--accent-dim); }
+  .tier-upgrade-box-btn:active { background: rgba(91,84,238,.2); }
 
   /* ── Buttons ── */
   .btn {
@@ -530,49 +548,52 @@
 
   <div class="test-cards" id="test-cards">
     <div class="test-card selected" data-test="ddo" onclick="selectTest(this)">
-      <div class="tier-top">
-        <div>
-          <div class="tier-price-tag">100 ₽</div>
-          <div class="card-name" style="margin-top:5px">Экспресс</div>
-          <div class="card-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
+      <div class="tier-icon-badge">⚡</div>
+      <div class="tier-body">
+        <div class="tier-head-row">
+          <span class="tier-name">Экспресс</span>
+          <span class="tier-price-tag">100 ₽</span>
         </div>
-        <div class="card-check">✓</div>
+        <div class="tier-meta">ДДО Климова · 20 вопросов · ~10 мин</div>
+        <div class="tier-feats">
+          <div class="tier-feat">5 типов профессий по Климову</div>
+          <div class="tier-feat">ТОП-6 профессий конкретно для тебя</div>
+          <div class="tier-feat">Зарплатный диапазон + PDF в Telegram</div>
+        </div>
       </div>
-      <div class="tier-feats">
-        <div class="tier-feat">5 типов профессий по Климову</div>
-        <div class="tier-feat">ТОП-6 профессий конкретно для тебя</div>
-        <div class="tier-feat">Зарплатный диапазон + PDF в Telegram</div>
-      </div>
+      <div class="tier-radio">✓</div>
     </div>
     <div class="test-card" data-test="yovayshi" onclick="selectTest(this)">
-      <div class="tier-top">
-        <div>
-          <div class="tier-price-tag">200 ₽</div>
-          <div class="card-name" style="margin-top:5px">Стандарт</div>
-          <div class="card-meta">Йовайши · 24 вопроса · ~12 мин</div>
+      <div class="tier-icon-badge">🔍</div>
+      <div class="tier-body">
+        <div class="tier-head-row">
+          <span class="tier-name">Стандарт</span>
+          <span class="tier-price-tag">200 ₽</span>
         </div>
-        <div class="card-check"></div>
+        <div class="tier-meta">Йовайши · 24 вопроса · ~12 мин</div>
+        <div class="tier-feats">
+          <div class="tier-feat">6 профессиональных склонностей</div>
+          <div class="tier-feat">Косвенные вопросы — честнее результат</div>
+          <div class="tier-feat">8 профессий + зарплаты по направлению</div>
+        </div>
       </div>
-      <div class="tier-feats">
-        <div class="tier-feat">6 профессиональных склонностей</div>
-        <div class="tier-feat">Косвенные вопросы — честнее результат</div>
-        <div class="tier-feat">8 профессий + зарплаты по направлению</div>
-      </div>
+      <div class="tier-radio"></div>
     </div>
     <div class="test-card" data-test="onett" onclick="selectTest(this)">
-      <div class="tier-top">
-        <div>
-          <div class="tier-price-tag">300 ₽</div>
-          <div class="card-name" style="margin-top:5px">Полный</div>
-          <div class="card-meta">O*NET RIASEC · 60 вопросов · ~20 мин</div>
+      <div class="tier-icon-badge">🌐</div>
+      <div class="tier-body">
+        <div class="tier-head-row">
+          <span class="tier-name">Полный</span>
+          <span class="tier-price-tag">300 ₽</span>
         </div>
-        <div class="card-check"></div>
+        <div class="tier-meta">O*NET RIASEC · 60 вопросов · ~20 мин</div>
+        <div class="tier-feats">
+          <div class="tier-feat">Международный RIASEC-профиль (6 типов)</div>
+          <div class="tier-feat">ТОП-10 профессий с данными рынка</div>
+          <div class="tier-feat">Самый точный и глубокий анализ</div>
+        </div>
       </div>
-      <div class="tier-feats">
-        <div class="tier-feat">Международный RIASEC-профиль (6 типов)</div>
-        <div class="tier-feat">ТОП-10 профессий с данными рынка</div>
-        <div class="tier-feat">Самый точный и глубокий анализ</div>
-      </div>
+      <div class="tier-radio"></div>
     </div>
   </div>
 
@@ -619,10 +640,12 @@
 
   <div class="top-cards" id="top-cards"></div>
 
+  <div class="type-hero" id="type-hero"></div>
+
   <div class="section-label">Все шкалы</div>
   <div id="bars-wrap"></div>
 
-  <div class="professions" id="professions-block"></div>
+  <div id="upgrade-block"></div>
 
   <div class="btn-footer">
     <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
@@ -772,10 +795,10 @@ function showScreen(id) {
 function selectTest(card) {
   document.querySelectorAll(".test-card").forEach(c => {
     c.classList.remove("selected");
-    c.querySelector(".card-check").textContent = "";
+    c.querySelector(".tier-radio").textContent = "";
   });
   card.classList.add("selected");
-  card.querySelector(".card-check").textContent = "✓";
+  card.querySelector(".tier-radio").textContent = "✓";
   selectedTest = card.dataset.test;
 }
 
@@ -926,38 +949,40 @@ function renderResults(data) {
   }).join("");
   document.getElementById("bars-wrap").innerHTML = barsHTML;
 
-  // professions — rich version with tier-based depth
+  // type hero — rich version with tier-based depth
   const topType = top_types[0];
   const rich = PROF_RICH[topType] || {};
   const tierLimit = selectedTest === "onett" ? 10 : selectedTest === "yovayshi" ? 8 : 6;
   const profs = rich.profs || (recommendations?.length ? recommendations : PROF_MAP[topType] || []);
 
-  let html = `<div class="prof-type-head">
-    <span class="prof-type-emoji">${rich.emoji || "🎯"}</span>
-    <div>
-      <div class="prof-type-label">${topType}</div>
-      <div class="prof-type-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
+  document.getElementById("type-hero").innerHTML = `
+    <div class="type-hero-head">
+      <div class="type-hero-icon">${rich.emoji || "🎯"}</div>
+      <div>
+        <div class="type-hero-name">${topType}</div>
+        <div class="type-hero-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
+      </div>
     </div>
-  </div>`;
+    ${rich.salary ? `<div class="type-hero-salary">💰 ${rich.salary}</div>` : ""}
+    <div class="type-hero-profs-label">Подходящие профессии</div>
+    <div class="type-hero-profs">${profs.slice(0, tierLimit).map(p => `<span class="type-hero-tag">${p}</span>`).join("")}</div>
+  `;
 
-  if (rich.salary) html += `<div class="prof-salary">💰 Зарплаты в этой сфере: ${rich.salary}</div>`;
-
-  html += `<div class="prof-title" style="margin-bottom:8px">Подходящие профессии</div>
-  <div class="prof-list">${profs.slice(0, tierLimit).map(p => `<span class="prof-tag">${p}</span>`).join("")}</div>`;
-
+  // upgrade teaser for lower tiers
+  const upgradeBlock = document.getElementById("upgrade-block");
   if (selectedTest === "ddo") {
-    html += `<div class="tier-upgrade">
-      <div class="tier-upgrade-text">🔍 Тест «Стандарт» (200 ₽) выявит 6 глубинных склонностей через косвенные вопросы</div>
-      <button class="tier-upgrade-btn" onclick="showScreen('screen-intro')">Попробовать глубже →</button>
+    upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
+      <div class="tier-upgrade-box-text">🔍 Тест «Стандарт» (200 ₽) выявит 6 глубинных склонностей через косвенные вопросы</div>
+      <button class="tier-upgrade-box-btn" onclick="showScreen('screen-intro')">Попробовать глубже →</button>
     </div>`;
   } else if (selectedTest === "yovayshi") {
-    html += `<div class="tier-upgrade">
-      <div class="tier-upgrade-text">🌐 Тест «Полный» (300 ₽) — международный RIASEC-профиль и 10 профессий с данными рынка</div>
-      <button class="tier-upgrade-btn" onclick="showScreen('screen-intro')">Попробовать полный тест →</button>
+    upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
+      <div class="tier-upgrade-box-text">🌐 Тест «Полный» (300 ₽) — международный RIASEC-профиль и 10 профессий с данными рынка</div>
+      <button class="tier-upgrade-box-btn" onclick="showScreen('screen-intro')">Попробовать полный тест →</button>
     </div>`;
+  } else {
+    upgradeBlock.innerHTML = "";
   }
-
-  document.getElementById("professions-block").innerHTML = html;
 }
 
 function downloadPDF() {
@@ -1019,11 +1044,58 @@ function localScore() {
     return s;
   }
   if (selectedTest === "yovayshi") {
-    const scales = ["Люди","Исследование","Производство","Эстетика","Экстремал","Планово-экон."];
-    return Object.fromEntries(scales.map(s => [s, Math.floor(Math.random()*8)+1]));
+    const scores = {};
+    for (const [q, scaleMap] of Object.entries(YOVAYSHI_KEY)) {
+      const ans = answers[q];
+      if (ans && scaleMap[ans]) scores[scaleMap[ans]] = (scores[scaleMap[ans]] || 0) + 1;
+    }
+    for (const s of ["Люди","Исследование","Производство","Эстетика","Экстремал","Планово-экон."]) {
+      if (!(s in scores)) scores[s] = 0;
+    }
+    return scores;
+  }
+  if (selectedTest === "onett") {
+    const RANGES = {
+      "R — Реалист": [1,10], "I — Исследователь": [11,20], "A — Художник": [21,30],
+      "S — Социальный": [31,40], "E — Предприниматель": [41,50], "C — Конвенциональный": [51,60],
+    };
+    const scores = {};
+    for (const [label, [start, end]] of Object.entries(RANGES)) {
+      let sum = 0;
+      for (let i = start; i <= end; i++) sum += Number(answers[`q${i}`] || 3);
+      scores[label] = sum;
+    }
+    return scores;
   }
   return {};
 }
+
+const YOVAYSHI_KEY = {
+  q1:  {a:"Люди", b:"Производство", c:"Эстетика"},
+  q2:  {a:"Эстетика", b:"Люди", c:"Исследование"},
+  q3:  {a:"Исследование", b:"Люди", c:"Эстетика"},
+  q4:  {a:"Планово-экон.", b:"Производство", c:"Экстремал"},
+  q5:  {a:"Исследование", b:"Производство", c:"Люди"},
+  q6:  {a:"Производство", b:"Люди", c:"Исследование"},
+  q7:  {a:"Эстетика", b:"Производство", c:"Люди"},
+  q8:  {a:"Экстремал", b:"Люди", c:"Планово-экон."},
+  q9:  {a:"Эстетика", b:"Исследование", c:"Экстремал"},
+  q10: {a:"Экстремал", b:"Люди", c:"Эстетика"},
+  q11: {a:"Производство", b:"Исследование", c:"Люди"},
+  q12: {a:"Производство", b:"Эстетика", c:"Экстремал"},
+  q13: {a:"Люди", b:"Экстремал", c:"Планово-экон."},
+  q14: {a:"Исследование", b:"Эстетика", c:"Экстремал"},
+  q15: {a:"Производство", b:"Исследование", c:"Люди"},
+  q16: {a:"Исследование", b:"Люди", c:"Производство"},
+  q17: {a:"Экстремал", b:"Эстетика", c:"Производство"},
+  q18: {a:"Люди", b:"Производство", c:"Исследование"},
+  q19: {a:"Экстремал", b:"Планово-экон.", c:"Производство"},
+  q20: {a:"Планово-экон.", b:"Производство", c:"Люди"},
+  q21: {a:"Исследование", b:"Эстетика", c:"Производство"},
+  q22: {a:"Производство", b:"Планово-экон.", c:"Эстетика"},
+  q23: {a:"Эстетика", b:"Планово-экон.", c:"Исследование"},
+  q24: {a:"Люди", b:"Экстремал", c:"Планово-экон."},
+};
 
 const PROF_MAP = {
   "Природа":    ["Агроном","Ветеринар","Геолог","Биолог","Эколог","Лесник"],
