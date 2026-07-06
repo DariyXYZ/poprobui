@@ -1250,6 +1250,29 @@ function buildTreeSchedule() {
 // Appends one test's branch (trunk → hubs → top-hub's profession leaves)
 // to an existing schedule array. Leaves only grow off the top-scoring hub —
 // keeps density readable instead of every scale sprouting a profession list.
+// Conceptual cross-reference: ДДО, Йовайши and RIASEC are three different
+// instruments, but several of their scales measure the SAME underlying
+// trait (Образ / Эстетика / A-Художник are all "artistic interest" — this
+// is a documented overlap between Holland/Klimov/Yovayshi typologies, not
+// a coincidence). Scales in the same group share ONE hub node across
+// branches instead of drawing three disconnected same-meaning circles.
+// Scales with no equivalent in the other two tests (Природа, Экстремал,
+// E-Предприниматель) simply form their own single-member group.
+const HUB_GROUP_OF = {
+  "Техника": "tech", "Производство": "tech", "R — Реалист": "tech",
+  "Человек": "social", "Люди": "social", "S — Социальный": "social",
+  "Образ": "art", "Эстетика": "art", "A — Художник": "art",
+  "Знак": "data", "Планово-экон.": "data", "C — Конвенциональный": "data",
+  "Исследование": "research", "I — Исследователь": "research",
+  "Природа": "nature",
+  "Экстремал": "extreme",
+  "E — Предприниматель": "business",
+};
+const HUB_GROUP_LABEL = {
+  tech: "Техническое", social: "Социальное", art: "Творческое", data: "Системное",
+  research: "Исследовательское", nature: "Природа", extreme: "Экстремал", business: "Предприниматель",
+};
+
 function appendBranchToSchedule(schedule, testId, result, idx) {
   const hue = (BRANCH_HUES[idx % BRANCH_HUES.length] + hueJitter + 360) % 360;
   const trunkId = "trunk::" + testId;
@@ -1262,30 +1285,52 @@ function appendBranchToSchedule(schedule, testId, result, idx) {
     treeEdges.push({ a: ROOT_ID, b: trunkId, kind: "trunk" });
   });
 
+  // Hubs are keyed by CONCEPT GROUP, not by test — if this test's "Техника"
+  // lands in the same group as another test's "R — Реалист", they become
+  // one shared node instead of two disconnected same-meaning circles.
   const sorted = Object.entries(result.scores).sort((a, b) => b[1] - a[1]);
   const maxScore = sorted[0]?.[1] || 1;
+  const hubIdForLabel = {};
   sorted.forEach(([label, score]) => {
-    const hubId = testId + "::hub::" + label;
+    const groupId = HUB_GROUP_OF[label] || ("solo::" + testId + "::" + label);
+    const sharedHubId = "hub::" + groupId;
+    const norm = score / maxScore; // 0-1, so hub size stays comparable across tests with very different raw scales
+    hubIdForLabel[label] = sharedHubId;
     schedule.push(() => {
       const trunk = treeNodeById.get(trunkId);
-      const p = spawnNear(trunk, 22, null);
-      addTreeNode({ id: hubId, label, x: p.x, y: p.y, vx: 0, vy: 0, r: 6 + (score / maxScore) * 9, isHub: true, hue, sat: 68, light: 58, mass: 3, bornAt: performance.now() });
-      treeEdges.push({ a: trunkId, b: hubId, kind: "branch" });
+      let node = treeNodeById.get(sharedHubId);
+      if (!node) {
+        const p = spawnNear(trunk, 22, null);
+        node = {
+          id: sharedHubId, label: HUB_GROUP_LABEL[groupId] || label,
+          x: p.x, y: p.y, vx: 0, vy: 0, r: 6 + norm * 9, isHub: true,
+          hue, sat: 68, light: 58, mass: 3, bornAt: performance.now(),
+          normSum: norm, fromTests: new Set([testId]),
+        };
+        addTreeNode(node);
+      } else {
+        node.normSum += norm;
+        node.r = Math.min(6 + node.normSum * 9, 26);
+        node.mass += 1;
+        node.fromTests.add(testId);
+        node.isConverged = node.fromTests.size >= 2;
+        node.bornAt = performance.now(); // pulse to flag the new confirmation
+      }
+      treeEdges.push({ a: trunkId, b: sharedHubId, kind: "branch", converged: node.fromTests.size >= 2 });
     });
   });
 
   // Profession leaves are keyed by NAME, not per-branch — if two tests both
   // point at "Инженер", they share one node instead of drawing two identical
-  // ones. A profession confirmed by multiple tests grows, turns gold, and
-  // gets a permanent label — the graph's visual answer to "who is this kid".
+  // ones. Attached to this test's own top-scoring hub (now possibly shared).
   const topLabel = sorted[0]?.[0];
-  const hubId = testId + "::hub::" + topLabel;
+  const topHubId = hubIdForLabel[topLabel];
   const rich = PROF_RICH[topLabel] || {};
   const limit = testId === "onett" ? 6 : testId === "yovayshi" ? 5 : 4;
   (rich.profs || []).slice(0, limit).forEach(profName => {
     const profId = "prof::" + profName;
     schedule.push(() => {
-      const hub = treeNodeById.get(hubId);
+      const hub = treeNodeById.get(topHubId);
       let node = treeNodeById.get(profId);
       if (!node) {
         const p = spawnNear(hub, 18, null);
@@ -1298,7 +1343,7 @@ function appendBranchToSchedule(schedule, testId, result, idx) {
         node.isConverged = node.confirmCount >= 2;
         node.bornAt = performance.now(); // little re-pop pulse to flag the new confirmation
       }
-      treeEdges.push({ a: hubId, b: profId, kind: node.confirmCount >= 2 ? "converge" : "leaf" });
+      treeEdges.push({ a: topHubId, b: profId, kind: "leaf", converged: node.confirmCount >= 2 });
     });
   });
 }
@@ -1404,10 +1449,10 @@ function treeDraw() {
   for (const e of treeEdges) {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
-    ctxEl.strokeStyle = e.kind === "converge"
+    ctxEl.strokeStyle = e.converged
       ? "rgba(240,180,60,.55)"
       : (dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)");
-    ctxEl.lineWidth = (e.kind === "trunk" ? 1.4 : e.kind === "converge" ? 1.6 : 1) / camScale;
+    ctxEl.lineWidth = (e.kind === "trunk" ? 1.4 : e.converged ? 1.6 : 1) / camScale;
     ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
   }
   for (const p of treeNodes) {
