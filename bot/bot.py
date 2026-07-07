@@ -60,6 +60,27 @@ async def send_test_invoice(chat_id: int, test_id: str):
     if not YOOKASSA_PROVIDER_TOKEN:
         await bot.send_message(chat_id, "Платежи скоро будут подключены!")
         return
+    # provider_data receipt is REQUIRED by YooKassa when auto-receipts
+    # (Мой налог / онлайн-касса) are enabled — without it the payment is
+    # rejected at creation. Note the unit mismatch is intentional per
+    # YooKassa docs: prices[] is in kopecks, receipt value is in rubles.
+    # need_email + send_email_to_provider: YooKassa needs the payer's
+    # email/phone to deliver the receipt.
+    receipt = {
+        "receipt": {
+            "items": [{
+                "description": info["title"],
+                "quantity": "1.00",
+                "amount": {
+                    "value": f"{info['amount'] / 100:.2f}",
+                    "currency": "RUB",
+                },
+                "vat_code": 1,
+                "payment_mode": "full_payment",
+                "payment_subject": "service",
+            }]
+        }
+    }
     await bot.send_invoice(
         chat_id=chat_id,
         title=info["title"],
@@ -69,6 +90,9 @@ async def send_test_invoice(chat_id: int, test_id: str):
         currency="RUB",
         prices=[LabeledPrice(label=info["title"], amount=info["amount"])],
         start_parameter=f"pay_{test_id}",
+        need_email=True,
+        send_email_to_provider=True,
+        provider_data=json.dumps(receipt),
     )
 
 
