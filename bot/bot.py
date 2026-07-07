@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import sys
 from dotenv import load_dotenv
@@ -15,6 +16,9 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.storage.memory import MemoryStorage
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api'))
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -81,19 +85,28 @@ async def send_test_invoice(chat_id: int, test_id: str):
             }]
         }
     }
-    await bot.send_invoice(
-        chat_id=chat_id,
-        title=info["title"],
-        description=info["description"],
-        payload=f"test_{test_id}",
-        provider_token=YOOKASSA_PROVIDER_TOKEN,
-        currency="RUB",
-        prices=[LabeledPrice(label=info["title"], amount=info["amount"])],
-        start_parameter=f"pay_{test_id}",
-        need_email=True,
-        send_email_to_provider=True,
-        provider_data=json.dumps(receipt),
-    )
+    try:
+        await bot.send_invoice(
+            chat_id=chat_id,
+            title=info["title"],
+            description=info["description"],
+            payload=f"test_{test_id}",
+            provider_token=YOOKASSA_PROVIDER_TOKEN,
+            currency="RUB",
+            prices=[LabeledPrice(label=info["title"], amount=info["amount"])],
+            start_parameter=f"pay_{test_id}",
+            need_email=True,
+            send_email_to_provider=True,
+            provider_data=json.dumps(receipt),
+        )
+    except Exception as e:
+        logger.exception("Failed to send invoice for test_id=%s", test_id)
+        await bot.send_message(
+            chat_id,
+            "⚠️ Не удалось создать счёт ЮKassa.\n\n"
+            f"<code>{type(e).__name__}: {e}</code>",
+            parse_mode="HTML",
+        )
 
 
 # ── Keyboards ──────────────────────────────────────────────────────────────
@@ -243,6 +256,8 @@ async def cb_pay(call: CallbackQuery):
 
 @dp.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery):
+    logger.info("Pre-checkout query received: id=%s payload=%s currency=%s total=%s",
+                query.id, query.invoice_payload, query.currency, query.total_amount)
     await query.answer(ok=True)
 
 
@@ -250,6 +265,12 @@ async def pre_checkout(query: PreCheckoutQuery):
 async def payment_success(message: Message):
     payload = message.successful_payment.invoice_payload
     test_id = payload.replace("test_", "", 1)
+    logger.info("Successful payment: payload=%s currency=%s total=%s provider_charge_id=%s telegram_charge_id=%s",
+                payload,
+                message.successful_payment.currency,
+                message.successful_payment.total_amount,
+                message.successful_payment.provider_payment_charge_id,
+                message.successful_payment.telegram_payment_charge_id)
     await message.answer(
         "✅ Оплата прошла! Жми «🧭 Пройти тест» внизу — тест откроется сразу.",
         reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
@@ -260,7 +281,12 @@ async def payment_success(message: Message):
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    print("Bot started")
+    provider_mode = "unset"
+    if ":TEST:" in YOOKASSA_PROVIDER_TOKEN:
+        provider_mode = "TEST"
+    elif ":LIVE:" in YOOKASSA_PROVIDER_TOKEN:
+        provider_mode = "LIVE"
+    logger.info("Bot started. YooKassa provider token mode=%s", provider_mode)
     await dp.start_polling(bot)
 
 
