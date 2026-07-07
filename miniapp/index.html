@@ -21,8 +21,8 @@
     --muted: #8E8EA8;
     --border: #E6E6F2;
     --green: #16A34A;
-    --radius: 14px;
-    --radius-sm: 10px;
+    --radius: 10px;
+    --radius-sm: 8px;
     --font-head: 'Outfit', system-ui, sans-serif;
     --font-body: 'Inter', system-ui, sans-serif;
   }
@@ -186,7 +186,17 @@
 
   /* ── Results ── */
   .results-header { text-align: center; margin-bottom: 28px; padding-top: 8px; }
-  .results-emoji { font-size: 48px; margin-bottom: 12px; line-height: 1; }
+  .results-emoji {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .results-title {
     font-family: var(--font-head);
     font-size: 26px;
@@ -263,6 +273,20 @@
     gap: 14px;
     padding: 16px;
   }
+  .ui-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-block;
+    flex-shrink: 0;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .ui-icon-sm { width: 16px; height: 16px; }
+  .ui-icon-lg { width: 24px; height: 24px; }
+
   .tier-icon-badge {
     width: 52px;
     height: 52px;
@@ -271,11 +295,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 26px;
+    color: var(--accent);
     flex-shrink: 0;
     transition: background .15s ease;
   }
-  .test-card.selected .tier-icon-badge { background: rgba(255,255,255,.22); }
+  .tier-icon-badge .ui-icon { width: 25px; height: 25px; }
+  .test-card.selected .tier-icon-badge { background: rgba(255,255,255,.22); color: #fff; }
   .tier-body { flex: 1; min-width: 0; padding-right: 26px; }
   .tier-head-row {
     display: flex;
@@ -298,7 +323,7 @@
     color: var(--accent);
     background: var(--accent-dim);
     padding: 3px 10px;
-    border-radius: 99px;
+    border-radius: 7px;
     flex-shrink: 0;
     letter-spacing: -.2px;
   }
@@ -348,14 +373,13 @@
   }
   .type-hero-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
   .type-hero-icon {
-    font-size: 32px;
-    line-height: 1;
     flex-shrink: 0;
     width: 60px; height: 60px;
     border-radius: var(--radius);
     background: rgba(255,255,255,.18);
     display: flex; align-items: center; justify-content: center;
   }
+  .type-hero-icon .ui-icon { width: 28px; height: 28px; }
   .type-hero-name {
     font-family: var(--font-head);
     font-size: 19px;
@@ -370,7 +394,7 @@
     gap: 6px;
     background: rgba(255,255,255,.18);
     padding: 6px 12px;
-    border-radius: 99px;
+    border-radius: 8px;
     font-size: 12.5px;
     font-weight: 700;
     margin-bottom: 16px;
@@ -386,7 +410,7 @@
     font-size: 12.5px;
     font-weight: 600;
     padding: 5px 12px;
-    border-radius: 99px;
+    border-radius: 8px;
   }
 
   /* ── Results: upgrade teaser ── */
@@ -396,23 +420,24 @@
     border-radius: var(--radius);
     padding: 16px;
     margin-bottom: 20px;
-    text-align: center;
+    text-align: left;
   }
   .tier-upgrade-box-text { font-size: 12.5px; color: var(--text2); margin-bottom: 10px; line-height: 1.5; }
   .tier-upgrade-box-btn {
-    background: none;
-    border: 1.5px solid var(--accent);
-    color: var(--accent);
-    border-radius: 99px;
-    padding: 8px 18px;
+    width: 100%;
+    background: var(--accent);
+    border: 0;
+    color: #fff;
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
     font-family: var(--font-head);
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 700;
     cursor: pointer;
     touch-action: manipulation;
-    transition: background .12s, color .12s;
+    transition: opacity .12s;
   }
-  .tier-upgrade-box-btn:active { background: rgba(91,84,238,.2); }
+  .tier-upgrade-box-btn:active { opacity: .82; }
 
   /* ── Graph screen ── */
   .graph-screen { padding: 0; position: relative; overflow: hidden; }
@@ -449,14 +474,17 @@
   }
   .icon-btn-mini {
     width: 36px; height: 36px;
-    border-radius: 50%;
+    border-radius: 9px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text2);
-    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     touch-action: manipulation;
   }
+  .icon-btn-mini .ui-icon { width: 18px; height: 18px; }
   .icon-btn-mini:active { opacity: .7; }
   .graph-tooltip {
     position: fixed;
@@ -489,7 +517,7 @@
   .sheet {
     background: var(--bg);
     width: 100%;
-    border-radius: 20px 20px 0 0;
+    border-radius: 14px 14px 0 0;
     padding: 10px 20px calc(24px + env(safe-area-inset-bottom, 0px));
     transform: translateY(100%);
     transition: transform .25s cubic-bezier(.32,.72,0,1);
@@ -506,13 +534,16 @@
 
   /* ── Buttons ── */
   .btn {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    padding: 16px;
+    min-height: 54px;
+    padding: 12px 14px;
     border-radius: var(--radius);
     border: none;
     font-family: var(--font-head);
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     cursor: pointer;
     text-align: center;
@@ -520,6 +551,38 @@
     touch-action: manipulation;
     letter-spacing: -.1px;
   }
+  .btn .ui-icon { width: 19px; height: 19px; }
+  .btn-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .btn-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 0;
+    line-height: 1.15;
+    text-align: left;
+  }
+  .btn-label {
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 750;
+    color: currentColor;
+  }
+  .btn-sub {
+    margin-top: 3px;
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: currentColor;
+    opacity: .68;
+  }
+  .btn-simple .btn-copy { align-items: center; text-align: center; }
   .btn:active { opacity: .82; transform: scale(.98); }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-secondary {
@@ -534,6 +597,10 @@
     font-size: 14px;
     padding: 12px;
     font-weight: 500;
+  }
+  .btn-row-icon {
+    margin-left: auto;
+    opacity: .7;
   }
 
   .btn-footer {
@@ -575,7 +642,8 @@
   .hist-actions { display: flex; gap: 8px; }
   .hist-btn {
     flex: 1;
-    padding: 9px;
+    min-height: 38px;
+    padding: 8px 10px;
     border-radius: var(--radius-sm);
     border: none;
     font-family: var(--font-head);
@@ -584,6 +652,7 @@
     cursor: pointer;
     touch-action: manipulation;
   }
+  .hist-btn .ui-icon { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; }
   .hist-btn-view { background: var(--surface2); color: var(--text2); }
   .hist-btn-pdf { background: var(--accent); color: #fff; }
 
@@ -618,13 +687,19 @@
     <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
   <div class="graph-nav">
-    <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты">📊</button>
-    <button class="icon-btn-mini" onclick="openPricingSheet()" title="Тарифы">💳</button>
-    <button class="icon-btn-mini" onclick="randomizeLook()" title="Другой вариант карты">⟳</button>
+    <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты" aria-label="Мои результаты">
+      <svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/></svg>
+    </button>
+    <button class="icon-btn-mini" onclick="openPricingSheet()" title="Тарифы" aria-label="Тарифы">
+      <svg class="ui-icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+    </button>
+    <button class="icon-btn-mini" onclick="randomizeLook()" title="Другой вариант карты" aria-label="Другой вариант карты">
+      <svg class="ui-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
   </div>
 
   <div class="btn-footer">
-    <button class="btn btn-primary" id="graph-cta" onclick="onGraphCta()">Начать бесплатно →</button>
+    <button class="btn btn-primary" id="graph-cta" onclick="onGraphCta()">Начать бесплатно</button>
   </div>
 </div>
 
@@ -644,8 +719,8 @@
   </div>
   <div id="q-body"></div>
   <div class="btn-footer">
-    <button class="btn btn-primary" id="btn-next" onclick="nextQuestion()" disabled>Далее →</button>
-    <button class="btn btn-ghost" onclick="prevQuestion()">← Назад</button>
+    <button class="btn btn-primary" id="btn-next" onclick="nextQuestion()" disabled>Далее</button>
+    <button class="btn btn-ghost btn-simple" onclick="prevQuestion()">Назад</button>
   </div>
 </div>
 
@@ -660,7 +735,7 @@
 <!-- ── Screen: Results ─────────────────────────────────────────────────── -->
 <div id="screen-results" class="screen">
   <div class="results-header">
-    <div class="results-emoji">🎯</div>
+    <div class="results-emoji"><svg class="ui-icon ui-icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
     <div class="results-title">Твой профиль готов!</div>
     <div class="results-sub" id="results-sub">Вот что мы узнали о тебе</div>
   </div>
@@ -675,8 +750,8 @@
   <div id="upgrade-block"></div>
 
   <div class="btn-footer">
-    <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
-    <button class="btn btn-secondary" onclick="showScreen('screen-intro'); renderGraphScreen();">← Смотреть карту</button>
+    <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">Получить PDF</button>
+    <button class="btn btn-secondary btn-simple" onclick="showScreen('screen-intro'); renderGraphScreen();">Смотреть карту</button>
   </div>
 </div>
 
@@ -686,11 +761,56 @@
   <div style="color:var(--muted);font-size:13px;font-weight:500;margin-bottom:24px">История тестирований</div>
   <div id="history-list"></div>
   <div class="btn-footer">
-    <button class="btn btn-secondary" onclick="showScreen('screen-intro')">← К тестам</button>
+    <button class="btn btn-secondary btn-simple" onclick="showScreen('screen-intro')">К тестам</button>
   </div>
 </div>
 
 <script>
+// ── Inline icon set (Lucide-style strokes, no external dependency) ───────
+const ICON_PATHS = {
+  arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  arrowLeft: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/>',
+  card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+  rotate: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
+  bolt: '<path d="m13 2-9 13h8l-1 7 9-13h-8l1-7z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 0 20"/><path d="M12 2a15.3 15.3 0 0 0 0 20"/>',
+  fileText: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  map: '<path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15"/><path d="M15 6v15"/>',
+  check: '<path d="m20 6-11 11-5-5"/>',
+  leaf: '<path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 12-9h4v4c0 8-4 12-9 12Z"/><path d="M7 17c3-3 6-5 11-7"/>',
+  cog: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V22a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 18l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.3 8A2 2 0 1 1 7.1 5.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1Z"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  table: '<path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/>',
+  palette: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2a10 10 0 0 0 0 20h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1 0-4h3a7 7 0 0 0 0-14h-3Z"/>',
+  microscope: '<path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14 3 8l4-4 6 6"/><path d="m8 12 4-4"/>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.3 5.3L3 18l3 3 6.4-6.4a4 4 0 0 0 5.3-5.3l-2.8 2.8-2.1-2.1 2.8-2.8Z"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 13h20"/>',
+  clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  money: '<path d="M2 7h20v10H2z"/><circle cx="12" cy="12" r="3"/><path d="M6 10v4"/><path d="M18 10v4"/>'
+};
+function icon(name, cls = "") {
+  return `<svg class="ui-icon ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name] || ICON_PATHS.target}</svg>`;
+}
+function cta(label, sub = "", iconName = "arrowRight", trailing = "arrowRight") {
+  return `<span class="btn-content">${iconName ? icon(iconName) : ""}<span class="btn-copy"><span class="btn-label">${label}</span>${sub ? `<span class="btn-sub">${sub}</span>` : ""}</span>${trailing ? icon(trailing, "btn-row-icon") : ""}</span>`;
+}
+function simpleBtn(label, iconName = "") {
+  return `<span class="btn-content">${iconName ? icon(iconName) : ""}<span class="btn-copy"><span class="btn-label">${label}</span></span></span>`;
+}
+function typeIconName(name) {
+  if (/Природа/.test(name)) return "leaf";
+  if (/Техника|Производство|Реалист/.test(name)) return "cog";
+  if (/Человек|Люди|Социальный/.test(name)) return "users";
+  if (/Знак|Планово|Конвенциональный/.test(name)) return "table";
+  if (/Образ|Эстетика|Художник/.test(name)) return "palette";
+  if (/Исслед|I —/.test(name)) return "microscope";
+  if (/Экстремал/.test(name)) return "bolt";
+  if (/Предприниматель/.test(name)) return "briefcase";
+  return "target";
+}
 // ── Config ──────────────────────────────────────────────────────────────
 const API_URL = "https://b367ca9ad96ac3.lhr.life";
 const tg = window.Telegram?.WebApp;
@@ -823,11 +943,11 @@ function showScreen(id) {
 // ── Test sequence & tier metadata ───────────────────────────────────────
 const TEST_SEQUENCE = ["ddo", "yovayshi", "onett"];
 const TEST_META = {
-  ddo: { icon: "⚡", name: "Экспресс", price: "Бесплатно", meta: "ДДО Климова · 20 вопросов · ~10 мин",
+  ddo: { icon: "bolt", name: "Экспресс", price: "Бесплатно", meta: "ДДО Климова · 20 вопросов · ~10 мин",
     feats: ["5 типов профессий по Климову", "ТОП-6 профессий под твой профиль", "Зарплатный диапазон + PDF в Telegram"] },
-  yovayshi: { icon: "🔍", name: "Стандарт", price: "300 ₽", meta: "Йовайши · 24 вопроса · ~12 мин",
+  yovayshi: { icon: "search", name: "Стандарт", price: "300 ₽", meta: "Йовайши · 24 вопроса · ~12 мин",
     feats: ["6 профессиональных склонностей", "Непрямые вопросы — точнее результат", "8 профессий с зарплатами"] },
-  onett: { icon: "🌐", name: "Полный", price: "500 ₽", meta: "O*NET RIASEC · 60 вопросов · ~20 мин",
+  onett: { icon: "globe", name: "Полный", price: "500 ₽", meta: "O*NET RIASEC · 60 вопросов · ~20 мин",
     feats: ["Профиль по 6 направлениям RIASEC", "ТОП-10 профессий с зарплатами", "Методика Минтруда США (O*NET)"] },
 };
 const FREE_TEST_ID = "ddo";
@@ -850,6 +970,7 @@ function nextTestId() {
 }
 
 function startTest() {
+  document.getElementById("sheet-overlay").classList.remove("active");
   const testDef = TESTS[selectedTest];
   questions = testDef.questions;
   answers = {};
@@ -935,7 +1056,7 @@ async function submitAnswers() {
   showScreen("screen-loading");
   resultTestId = selectedTest;
   // last question label
-  document.getElementById("btn-next").textContent = "Далее →";
+  document.getElementById("btn-next").innerHTML = cta("Далее", "", "", "arrowRight");
 
   try {
     const res = await fetch(`${API_URL}/submit`, {
@@ -1018,13 +1139,13 @@ function renderResults(data) {
 
   document.getElementById("type-hero").innerHTML = `
     <div class="type-hero-head">
-      <div class="type-hero-icon">${rich.emoji || "🎯"}</div>
+      <div class="type-hero-icon">${icon(typeIconName(topType))}</div>
       <div>
         <div class="type-hero-name">${topType}</div>
         <div class="type-hero-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
       </div>
     </div>
-    ${rich.salary ? `<div class="type-hero-salary">💰 ${rich.salary}</div>` : ""}
+    ${rich.salary ? `<div class="type-hero-salary">${icon("money", "ui-icon-sm")} ${rich.salary}</div>` : ""}
     <div class="type-hero-profs-label">Подходящие профессии</div>
     <div class="type-hero-profs">${profs.slice(0, tierLimit).map(p => `<span class="type-hero-tag">${p}</span>`).join("")}</div>
   `;
@@ -1033,13 +1154,13 @@ function renderResults(data) {
   const upgradeBlock = document.getElementById("upgrade-block");
   if (selectedTest === "ddo") {
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
-      <div class="tier-upgrade-box-text">🔍 «Стандарт» находит склонности через непрямые вопросы — это точнее, чем выбор в лоб</div>
-      <button class="tier-upgrade-box-btn" onclick="goToTier('yovayshi')">Пройти «Стандарт» — ${TEST_META.yovayshi.price} →</button>
+      <div class="tier-upgrade-box-text"><b>Стандарт</b> находит склонности через непрямые вопросы — это точнее, чем выбор в лоб</div>
+      <button class="tier-upgrade-box-btn" onclick="goToTier('yovayshi')">${cta("Пройти «Стандарт»", TEST_META.yovayshi.price, "search")}</button>
     </div>`;
   } else if (selectedTest === "yovayshi") {
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
-      <div class="tier-upgrade-box-text">🌐 «Полный» — международная методика RIASEC: 6 типов, 10 профессий и зарплата по каждой</div>
-      <button class="tier-upgrade-box-btn" onclick="goToTier('onett')">Пройти «Полный» — ${TEST_META.onett.price} →</button>
+      <div class="tier-upgrade-box-text"><b>Полный</b> — международная методика RIASEC: 6 типов, 10 профессий и зарплата по каждой</div>
+      <button class="tier-upgrade-box-btn" onclick="goToTier('onett')">${cta("Пройти «Полный»", TEST_META.onett.price, "globe")}</button>
     </div>`;
   } else {
     upgradeBlock.innerHTML = "";
@@ -1567,16 +1688,18 @@ function randomizeLook() {
 function updateGraphStatus() {
   const done = completedTests();
   const next = nextTestId();
-  const cta = document.getElementById("graph-cta");
+  const ctaEl = document.getElementById("graph-cta");
   const statusEl = document.getElementById("graph-status");
   if (!next) {
-    cta.textContent = "Все 3 теста пройдены — смотреть результаты →";
-    cta.onclick = () => showHistory();
+    ctaEl.innerHTML = cta("Смотреть результаты", "Все 3 теста пройдены", "chart");
+    ctaEl.onclick = () => showHistory();
     statusEl.textContent = "Дерево завершено — 3 из 3";
   } else {
     const meta = TEST_META[next];
-    cta.textContent = done.length ? `Продолжить: ${meta.name} · ${meta.price} →` : `Начать бесплатно: ${meta.name} →`;
-    cta.onclick = () => openPreviewSheet(next);
+    ctaEl.innerHTML = done.length
+      ? cta(`Продолжить: ${meta.name}`, meta.price, meta.icon)
+      : cta("Начать бесплатно", meta.name, meta.icon);
+    ctaEl.onclick = () => openPreviewSheet(next);
     statusEl.textContent = done.length ? `${done.length} из 3 пройдено` : "Начни с бесплатного теста";
   }
 }
@@ -1607,7 +1730,7 @@ function openPricingSheet() {
     return `
       <div class="tier-head-row" style="margin-bottom:10px;${isDone ? 'opacity:.55' : ''}">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="tier-icon-badge" style="width:40px;height:40px;font-size:20px">${meta.icon}</div>
+          <div class="tier-icon-badge" style="width:40px;height:40px">${icon(meta.icon)}</div>
           <div>
             <div class="tier-name" style="font-size:14px">${meta.name}</div>
             <div class="tier-meta" style="margin-bottom:0">${meta.meta}</div>
@@ -1615,14 +1738,14 @@ function openPricingSheet() {
         </div>
         <span class="tier-price-tag">${status}</span>
       </div>
-      ${isNext ? `<button class="btn btn-secondary" style="margin-bottom:14px" onclick="closeSheet(); openPreviewSheet('${id}');">${done.length ? 'Продолжить' : 'Начать'} →</button>` : ""}
+      ${isNext ? `<button class="btn btn-secondary" style="margin-bottom:14px" onclick="closeSheet(); openPreviewSheet('${id}');">${cta(done.length ? 'Продолжить' : 'Начать', meta.name, meta.icon)}</button>` : ""}
     `;
   }).join("");
 
   document.getElementById("sheet-body").innerHTML = `
     <div class="sheet-handle"></div>
     <div class="tier-name" style="font-size:18px;margin-bottom:4px">Тарифы</div>
-    <div class="tier-meta" style="margin-bottom:16px">Отдельная оплата за каждый тест — без баланса и пополнений. Заплатил → тест открылся сразу.</div>
+    <div class="tier-meta" style="margin-bottom:16px">Отдельная оплата за каждый тест. После оплаты тест открывается сразу.</div>
     ${rows}
   `;
   showSheet();
@@ -1634,7 +1757,7 @@ function openPreviewSheet(testId) {
     <div class="sheet-handle"></div>
     <div class="tier-head-row" style="align-items:flex-start;margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="tier-icon-badge">${meta.icon}</div>
+        <div class="tier-icon-badge">${icon(meta.icon)}</div>
         <div>
           <div class="tier-name">${meta.name}</div>
           <div class="tier-meta" style="margin-bottom:0">${meta.meta}</div>
@@ -1645,7 +1768,7 @@ function openPreviewSheet(testId) {
     <div class="tier-feats" style="margin-bottom:18px">
       ${meta.feats.map(f => `<div class="tier-feat">${f}</div>`).join("")}
     </div>
-    <button class="btn btn-primary" onclick="confirmStartTest('${testId}')">Начать тест →</button>
+    <button class="btn btn-primary" onclick="confirmStartTest('${testId}')">${testId === FREE_TEST_ID ? cta("Начать тест", "Бесплатно", meta.icon) : cta("Оплатить и начать", meta.price, meta.icon)}</button>
   `;
   showSheet();
 }
@@ -1670,7 +1793,7 @@ function requestInvoice(testId) {
     tg.sendData(JSON.stringify({ action: "request_invoice", test_id: testId }));
   } catch (e) {
     console.error("sendData failed:", e);
-    tg.showAlert("Вернись в чат с ботом и нажми «💳 Баланс», чтобы оплатить этот тест");
+    tg.showAlert("Вернись в чат с ботом и нажми «Баланс», чтобы оплатить этот тест");
   }
 }
 
@@ -1694,19 +1817,19 @@ function openResultSheet(testId, data) {
     <div class="sheet-handle"></div>
     <div class="type-hero" style="margin-bottom:14px">
       <div class="type-hero-head">
-        <div class="type-hero-icon">${rich.emoji || "🎯"}</div>
+        <div class="type-hero-icon">${icon(typeIconName(topType))}</div>
         <div>
           <div class="type-hero-name">${topType}</div>
           <div class="type-hero-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
         </div>
       </div>
-      ${rich.salary ? `<div class="type-hero-salary">💰 ${rich.salary}</div>` : ""}
+      ${rich.salary ? `<div class="type-hero-salary">${icon("money", "ui-icon-sm")} ${rich.salary}</div>` : ""}
       <div class="type-hero-profs-label">Подходящие профессии</div>
       <div class="type-hero-profs">${profs.map(p => `<span class="type-hero-tag">${p}</span>`).join("")}</div>
     </div>
     ${convergence}
-    <button class="btn btn-primary" onclick="downloadPDF()">📨 Получить PDF в Telegram</button>
-    <button class="btn btn-secondary" style="margin-top:8px" onclick="closeSheet()">Смотреть карту</button>
+    <button class="btn btn-primary" onclick="downloadPDF()">${cta("Получить PDF", "Придёт в Telegram", "fileText")}</button>
+    <button class="btn btn-secondary btn-simple" style="margin-top:8px" onclick="closeSheet()">${simpleBtn("Смотреть карту", "map")}</button>
   `;
   showSheet();
 }
@@ -1714,7 +1837,9 @@ function openResultSheet(testId, data) {
 // update last question button label
 function updateNextLabel() {
   const btn = document.getElementById("btn-next");
-  btn.textContent = currentQ === questions.length - 1 ? "Получить результат 🎯" : "Далее →";
+  btn.innerHTML = currentQ === questions.length - 1
+    ? cta("Получить результат", "Собрать профиль", "target")
+    : cta("Далее", "", "", "arrowRight");
 }
 // patch nextQuestion to update label
 const _origRender = renderQuestion;
@@ -1738,6 +1863,7 @@ function saveToHistory(testId, scores, topTypes, recommendations) {
 }
 
 function showHistory() {
+  document.getElementById("sheet-overlay").classList.remove("active");
   const history = JSON.parse(localStorage.getItem("poprobui_history") || "[]");
   const list = document.getElementById("history-list");
   if (!history.length) {
@@ -1755,8 +1881,8 @@ function showHistory() {
           ).join("")}
         </div>
         <div class="hist-actions">
-          <button class="hist-btn hist-btn-view" onclick="viewHistoryResult(${i})">Смотреть</button>
-          <button class="hist-btn hist-btn-pdf" onclick="pdfHistoryResult(${i})">📨 В Telegram</button>
+          <button class="hist-btn hist-btn-view" onclick="viewHistoryResult(${i})">${icon("target", "ui-icon-sm")}Смотреть</button>
+          <button class="hist-btn hist-btn-pdf" onclick="pdfHistoryResult(${i})">${icon("fileText", "ui-icon-sm")}PDF</button>
         </div>
       </div>`).join("");
   }
@@ -1780,6 +1906,19 @@ function pdfHistoryResult(i) {
   downloadPDF();
 }
 
+function initStaticCtas() {
+  const pdfBtn = document.getElementById("btn-pdf");
+  if (pdfBtn) pdfBtn.innerHTML = cta("Получить PDF", "Придёт в Telegram", "fileText");
+  document.querySelectorAll(".btn-secondary.btn-simple").forEach(btn => {
+    const text = btn.textContent.trim();
+    if (text === "Смотреть карту") btn.innerHTML = simpleBtn("Смотреть карту", "map");
+    if (text === "К тестам") btn.innerHTML = simpleBtn("К тестам", "arrowLeft");
+  });
+  document.querySelectorAll(".btn-ghost.btn-simple").forEach(btn => {
+    if (btn.textContent.trim() === "Назад") btn.innerHTML = simpleBtn("Назад", "arrowLeft");
+  });
+}
+
 // ── Enter key for questions ───────────────────────────────────────────────
 document.addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
@@ -1790,6 +1929,7 @@ document.addEventListener("keydown", e => {
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────
+initStaticCtas();
 initTreeCanvas();
 renderGraphScreen();
 treeLoop();
