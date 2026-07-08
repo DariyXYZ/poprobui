@@ -898,6 +898,7 @@ let resultScores = null;
 let resultTopTypes = [];
 let resultRecommendations = [];
 let resultTestId = "ddo";
+let pendingResultSheetTimer = null;
 
 function formatRub(cents) {
   const rub = Math.floor(Math.max(0, cents || 0) / 100);
@@ -1096,7 +1097,11 @@ function resetLocalUserState() {
   resultTestId = FREE_TEST_ID;
   const sheet = document.getElementById("sheet-overlay");
   if (sheet) sheet.classList.remove("active");
-  hasShownTreeOnce = false;
+  if (pendingResultSheetTimer) {
+    clearTimeout(pendingResultSheetTimer);
+    pendingResultSheetTimer = null;
+  }
+  clearTreeRuntimeState();
   rebuildTreeAnimated();
   updateGraphStatus();
   showScreen("screen-intro");
@@ -1236,7 +1241,11 @@ function handleTestComplete(data) {
   if (root) { root.r = rootRadius(completedTests().length); root.bornAt = performance.now(); } // pulse
   updateGraphStatus();
   growNewBranch(selectedTest, { scores: data.scores, top_types: data.top_types }, TEST_SEQUENCE.indexOf(selectedTest));
-  setTimeout(() => openResultSheet(selectedTest, data), 900);
+  if (pendingResultSheetTimer) clearTimeout(pendingResultSheetTimer);
+  pendingResultSheetTimer = setTimeout(() => {
+    pendingResultSheetTimer = null;
+    openResultSheet(selectedTest, data);
+  }, 900);
 }
 
 function renderResults(data) {
@@ -1445,6 +1454,7 @@ let canvasEl, ctxEl, canvasW = 0, canvasH = 0;
 let dragNode = null, downNode = null, moveDist = 0, hoveredNode = null;
 let hasShownTreeOnce = false;
 let camScale = 1, camCX = 0, camCY = 0;
+let treeScheduleTimers = [];
 
 function rootRadius(doneCount) { return 42 + Math.min(doneCount, 3) * 2; }
 
@@ -1489,6 +1499,25 @@ function resizeTreeCanvas() {
 }
 
 function addTreeNode(n) { treeNodes.push(n); treeNodeById.set(n.id, n); }
+function clearTreeScheduleTimers() {
+  treeScheduleTimers.forEach(id => clearTimeout(id));
+  treeScheduleTimers = [];
+}
+function clearTreeRuntimeState() {
+  clearTreeScheduleTimers();
+  treeNodes = [];
+  treeEdges = [];
+  treeNodeById = new Map();
+  treePhysics = graphPhysics();
+  dragNode = null;
+  downNode = null;
+  moveDist = 0;
+  hoveredNode = null;
+  hasShownTreeOnce = false;
+  camCX = canvasW / 2;
+  camCY = canvasH / 2;
+  camScale = 1.1;
+}
 function spawnNear(parent, jitter, angle) {
   const a = angle != null ? angle : Math.random() * Math.PI * 2;
   const d = angle != null ? 55 : 6 + Math.random() * jitter;
@@ -1626,14 +1655,21 @@ function buildTreeSchedule() {
 }
 
 function runSchedule(schedule, perDelay) {
-  schedule.forEach((fn, i) => setTimeout(fn, i * perDelay));
+  clearTreeScheduleTimers();
+  schedule.forEach((fn, i) => {
+    const timer = setTimeout(() => {
+      fn();
+      treeScheduleTimers = treeScheduleTimers.filter(id => id !== timer);
+    }, i * perDelay);
+    treeScheduleTimers.push(timer);
+  });
 }
 
 // Places the full persisted tree immediately, no reveal animation — used
 // to silently reconstruct prior state right before growing a brand-new
 // branch, so only the new branch gets the "growing" moment.
 function rebuildTreeInstant() {
-  treeNodes = []; treeEdges = []; treeNodeById = new Map();
+  clearTreeRuntimeState();
   buildTreeSchedule().forEach(fn => fn());
   hasShownTreeOnce = true;
 }
@@ -1641,7 +1677,7 @@ function rebuildTreeInstant() {
 // branch in order. Used on first load of the session so returning users
 // still see it "grow" rather than snapping into place.
 function rebuildTreeAnimated() {
-  treeNodes = []; treeEdges = []; treeNodeById = new Map();
+  clearTreeRuntimeState();
   runSchedule(buildTreeSchedule(), 95);
   hasShownTreeOnce = true;
 }
