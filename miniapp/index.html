@@ -1301,7 +1301,7 @@ const POP_MS = 320; // per-node pop-in duration
 const CAM_PAD_TOP = 118, CAM_PAD_BOTTOM = 104, CAM_PAD_SIDE = 20;
 
 let treeNodes = [], treeEdges = [], treeNodeById = new Map();
-let treePhysics = randomTreePhysics();
+let treePhysics = graphPhysics();
 let hueJitter = Math.random() * 30 - 15;
 let canvasEl, ctxEl, canvasW = 0, canvasH = 0;
 let dragNode = null, downNode = null, moveDist = 0, hoveredNode = null;
@@ -1310,15 +1310,27 @@ let camScale = 1, camCX = 0, camCY = 0;
 
 function rootRadius(doneCount) { return 9 + doneCount * 4; }
 
-function randomTreePhysics() {
+function graphPhysics() {
   return {
-    repel: 2200 + Math.random() * 1400,
-    spring: 0.010 + Math.random() * 0.010,
-    restTrunk: 55 + Math.random() * 25,
-    restHub: 42 + Math.random() * 22,
-    restSat: 20 + Math.random() * 12,
-    damping: 0.85 + Math.random() * 0.03,
+    repel: 1250,
+    spring: 0.0065,
+    restTrunk: 78,
+    restHub: 58,
+    restSat: 28,
+    damping: 0.78,
+    maxSpeed: 2.15,
   };
+}
+
+function hubRadius(strengthSum, testCount) {
+  const confirmed = Math.min(testCount || 1, 3);
+  const total = Math.min(Math.max(strengthSum || 0, 0), 3);
+  const scorePart = Math.pow(total / 3, 0.72);
+  return 8 + scorePart * 18 + Math.max(0, confirmed - 1) * 1.5;
+}
+
+function leafRadius(confirmCount) {
+  return Math.min(3.8 + Math.max(0, (confirmCount || 1) - 1) * 2.2, 9);
 }
 
 function initTreeCanvas() {
@@ -1424,16 +1436,17 @@ function appendBranchToSchedule(schedule, testId, result, idx) {
         const p = spawnNear(trunk, 22, null);
         node = {
           id: sharedHubId, label: HUB_GROUP_LABEL[groupId] || label,
-          x: p.x, y: p.y, vx: 0, vy: 0, r: 6 + norm * 9, isHub: true,
-          hue, sat: 68, light: 58, mass: 3, bornAt: performance.now(),
-          normSum: norm, fromTests: new Set([testId]),
+          x: p.x, y: p.y, vx: 0, vy: 0, r: hubRadius(norm, 1), isHub: true,
+          hue, sat: 70, light: 55, mass: 3.5, bornAt: performance.now(),
+          normSum: norm, fromTests: new Set([testId]), topScore: norm,
         };
         addTreeNode(node);
       } else {
         node.normSum += norm;
-        node.r = Math.min(6 + node.normSum * 9, 26);
-        node.mass += 1;
         node.fromTests.add(testId);
+        node.topScore = Math.max(node.topScore || 0, norm);
+        node.r = hubRadius(node.normSum, node.fromTests.size);
+        node.mass = 3.5 + node.fromTests.size * 1.2 + node.r * 0.08;
         node.isConverged = node.fromTests.size >= 2;
         node.bornAt = performance.now(); // pulse to flag the new confirmation
       }
@@ -1455,11 +1468,11 @@ function appendBranchToSchedule(schedule, testId, result, idx) {
       let node = treeNodeById.get(profId);
       if (!node) {
         const p = spawnNear(hub, 18, null);
-        node = { id: profId, label: profName, x: p.x, y: p.y, vx: 0, vy: 0, r: 3.5, isLeaf: true, hue, sat: 55, light: 46, mass: 1, bornAt: performance.now(), confirmCount: 1 };
+        node = { id: profId, label: profName, x: p.x, y: p.y, vx: 0, vy: 0, r: leafRadius(1), isLeaf: true, hue, sat: 55, light: 46, mass: 1, bornAt: performance.now(), confirmCount: 1 };
         addTreeNode(node);
       } else {
         node.confirmCount = (node.confirmCount || 1) + 1;
-        node.r += 3.5;
+        node.r = leafRadius(node.confirmCount);
         node.mass += 0.6;
         node.isConverged = node.confirmCount >= 2;
         node.bornAt = performance.now(); // little re-pop pulse to flag the new confirmation
@@ -1486,14 +1499,14 @@ function rebuildTreeInstant() {
 // still see it "grow" rather than snapping into place.
 function rebuildTreeAnimated() {
   treeNodes = []; treeEdges = []; treeNodeById = new Map();
-  runSchedule(buildTreeSchedule(), 70);
+  runSchedule(buildTreeSchedule(), 95);
   hasShownTreeOnce = true;
 }
 // Grows just the newly-finished test's branch onto the existing tree.
 function growNewBranch(testId, result, idx) {
   const schedule = [];
   appendBranchToSchedule(schedule, testId, result, idx);
-  runSchedule(schedule, 110);
+  runSchedule(schedule, 130);
 }
 
 function treeStep() {
@@ -1510,14 +1523,15 @@ function treeStep() {
         a.vx += fx / a.mass; a.vy += fy / a.mass;
         if (b !== dragNode) { b.vx -= fx / b.mass; b.vy -= fy / b.mass; }
       }
-      a.vx += (canvasW / 2 - a.x) * 0.0004;
-      a.vy += (canvasH / 2 - a.y) * 0.0004;
+      a.vx += (canvasW / 2 - a.x) * 0.00025;
+      a.vy += (canvasH / 2 - a.y) * 0.00025;
     }
   }
   for (const e of treeEdges) {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
-    const rest = e.kind === "trunk" ? treePhysics.restTrunk : e.kind === "branch" ? treePhysics.restHub : treePhysics.restSat;
+    const baseRest = e.kind === "trunk" ? treePhysics.restTrunk : e.kind === "branch" ? treePhysics.restHub : treePhysics.restSat;
+    const rest = baseRest + (a.r + b.r) * (e.kind === "leaf" ? 0.9 : 0.65);
     let dx = b.x - a.x, dy = b.y - a.y;
     const d = Math.max(Math.sqrt(dx * dx + dy * dy), 0.01);
     const f = treePhysics.spring * (d - rest);
@@ -1528,6 +1542,11 @@ function treeStep() {
   for (const p of treeNodes) {
     if (p === dragNode) continue;
     p.vx *= treePhysics.damping; p.vy *= treePhysics.damping;
+    const speed = Math.hypot(p.vx, p.vy);
+    if (speed > treePhysics.maxSpeed) {
+      const k = treePhysics.maxSpeed / speed;
+      p.vx *= k; p.vy *= k;
+    }
     p.x += p.vx; p.y += p.vy;
   }
 }
@@ -1540,17 +1559,20 @@ function updateCamera() {
   if (treeNodes.length) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const p of treeNodes) {
-      minX = Math.min(minX, p.x - p.r); maxX = Math.max(maxX, p.x + p.r);
-      minY = Math.min(minY, p.y - p.r - 20); maxY = Math.max(maxY, p.y + p.r);
+      const labelPad = (p.isHub || p.isRoot || p.isConverged) ? Math.min(92, Math.max(28, p.label.length * 4.8)) : 6;
+      minX = Math.min(minX, p.x - p.r - labelPad);
+      maxX = Math.max(maxX, p.x + p.r + labelPad);
+      minY = Math.min(minY, p.y - p.r - 24);
+      maxY = Math.max(maxY, p.y + p.r + 10);
     }
     const boxW = Math.max(maxX - minX, 30), boxH = Math.max(maxY - minY, 30);
     const availW = canvasW - CAM_PAD_SIDE * 2, availH = canvasH - CAM_PAD_TOP - CAM_PAD_BOTTOM;
     scale = Math.max(0.32, Math.min(Math.min(availW / boxW, availH / boxH), 1.6));
     cx = (minX + maxX) / 2; cy = (minY + maxY) / 2;
   }
-  camScale += (scale - camScale) * 0.07;
-  camCX += (cx - camCX) * 0.07;
-  camCY += (cy - camCY) * 0.07;
+  camScale += (scale - camScale) * 0.045;
+  camCX += (cx - camCX) * 0.045;
+  camCY += (cy - camCY) * 0.045;
 }
 function camScreenCY() { return CAM_PAD_TOP + (canvasH - CAM_PAD_TOP - CAM_PAD_BOTTOM) / 2; }
 function screenToWorld(x, y) {
@@ -1582,10 +1604,21 @@ function treeDraw() {
     ctxEl.globalAlpha = ease;
     ctxEl.beginPath();
     ctxEl.shadowBlur = (p.isRoot ? 22 : p.isConverged ? 16 : p.isHub ? 13 : p.isTrunk ? 9 : 5) + (isHovered ? 10 : 0);
-    ctxEl.shadowColor = p.isConverged ? "rgba(240,180,60,.9)" : `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .85)`;
-    ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : p.isConverged ? "hsl(42, 88%, 58%)" : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
+    ctxEl.shadowColor = p.isConverged ? "rgba(240,180,60,.65)" : `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .7)`;
+    ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     ctxEl.arc(p.x, p.y, p.r * ease, 0, Math.PI * 2);
     ctxEl.fill();
+    if (p.isConverged) {
+      ctxEl.shadowBlur = 0;
+      ctxEl.lineWidth = Math.max(2.2, p.r * 0.13) / camScale;
+      ctxEl.strokeStyle = "rgba(245,185,65,.92)";
+      ctxEl.stroke();
+      ctxEl.beginPath();
+      ctxEl.lineWidth = 1.1 / camScale;
+      ctxEl.strokeStyle = "rgba(255,255,255,.62)";
+      ctxEl.arc(p.x, p.y, Math.max(1, p.r * ease - 3 / camScale), 0, Math.PI * 2);
+      ctxEl.stroke();
+    }
     if (isHovered) {
       ctxEl.lineWidth = 2 / camScale;
       ctxEl.strokeStyle = dark ? "#fff" : "#16132A";
@@ -1599,7 +1632,8 @@ function treeDraw() {
     if (!p.isHub && !p.isRoot && !p.isConverged) continue;
     const ease = Math.min(1, (now - p.bornAt) / POP_MS);
     ctxEl.globalAlpha = ease;
-    ctxEl.font = (p.isRoot ? "700 13px " : p.isConverged ? "700 12px " : "700 11px ") + "Outfit, system-ui, sans-serif";
+    const labelSize = p.isRoot ? 13 : p.isHub ? Math.max(11, Math.min(15, p.r * 0.55)) : 11;
+    ctxEl.font = `700 ${labelSize}px Outfit, system-ui, sans-serif`;
     ctxEl.fillStyle = p.isConverged ? (dark ? "hsl(42, 95%, 68%)" : "hsl(36, 90%, 38%)") : (dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)");
     ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
     ctxEl.globalAlpha = 1;
@@ -1680,7 +1714,7 @@ function wireTreeInteraction() {
 
 function randomizeLook() {
   hueJitter = Math.random() * 30 - 15;
-  treePhysics = randomTreePhysics();
+  treePhysics = graphPhysics();
   rebuildTreeAnimated();
 }
 

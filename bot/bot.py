@@ -29,7 +29,7 @@ YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "")
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "12"
+MINIAPP_VERSION = "13"
 
 
 def miniapp_url(extra: str = "") -> str:
