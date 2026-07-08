@@ -9,7 +9,7 @@ from aiogram.types import (
     Message, CallbackQuery,
     InlineKeyboardMarkup, InlineKeyboardButton,
     ReplyKeyboardMarkup, KeyboardButton,
-    WebAppInfo, LabeledPrice, PreCheckoutQuery,
+    WebAppInfo, LabeledPrice, PreCheckoutQuery, BotCommand,
     FSInputFile,
 )
 from aiogram.filters import CommandStart, Command
@@ -38,6 +38,14 @@ def miniapp_url(extra: str = "") -> str:
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+
+BOT_COMMANDS = [
+    BotCommand(command="start", description="Открыть меню и начать заново"),
+    BotCommand(command="menu", description="Показать кнопки мини-аппа"),
+    BotCommand(command="test", description="Пройти тест"),
+    BotCommand(command="balance", description="Тарифы и оплата"),
+    BotCommand(command="help", description="Как работает Попробуй"),
+]
 
 
 # ── Pricing ──────────────────────────────────────────────────────────────
@@ -203,13 +211,20 @@ async def handle_web_app_data(message: Message):
         )
 
 
-@dp.message(Command("menu"))
+@dp.message(Command("menu", "test"))
 async def cmd_menu(message: Message):
-    await message.answer("Меню:", reply_markup=kb_main())
+    await message.answer(
+        "Меню открыто. Если кнопки пропали, используй /menu или /balance.",
+        reply_markup=kb_main(),
+    )
 
 
-@dp.message(F.text == "ℹ️ Как работает")
-async def handle_how(message: Message):
+@dp.message(Command("help"))
+async def cmd_help(message: Message):
+    await send_how_it_works(message)
+
+
+async def send_how_it_works(message: Message):
     await message.answer(
         "📖 <b>Как работает Попробуй</b>\n\n"
         "1. Нажми «🧭 Пройти тест» — мини-апп откроется прямо в Telegram\n\n"
@@ -223,14 +238,28 @@ async def handle_how(message: Message):
     )
 
 
-@dp.message(F.text == "💳 Баланс")
-async def handle_balance(message: Message):
+@dp.message(F.text == "ℹ️ Как работает")
+async def handle_how(message: Message):
+    await send_how_it_works(message)
+
+
+@dp.message(Command("balance"))
+async def cmd_balance(message: Message):
+    await send_balance_menu(message)
+
+
+async def send_balance_menu(message: Message):
     await message.answer(
-        "💳 <b>Выбери тариф</b>\n\n"
-        "После оплаты тест откроется автоматически.",
+        "💳 <b>Тарифы и оплата</b>\n\n"
+        "Выбери тест. После оплаты он откроется автоматически.",
         parse_mode="HTML",
         reply_markup=kb_topup()
     )
+
+
+@dp.message(F.text == "💳 Баланс")
+async def handle_balance(message: Message):
+    await send_balance_menu(message)
 
 
 @dp.callback_query(F.data == "hint_free")
@@ -240,7 +269,11 @@ async def cb_hint_free(call: CallbackQuery):
 
 @dp.callback_query(F.data == "back_main")
 async def cb_back_main(call: CallbackQuery):
-    await call.message.delete()
+    try:
+        await call.message.delete()
+    except Exception:
+        logger.exception("Failed to delete balance menu message")
+    await call.message.answer("Вернул основное меню.", reply_markup=kb_main())
     await call.answer()
 
 
@@ -280,6 +313,7 @@ async def payment_success(message: Message):
 # ── Main ───────────────────────────────────────────────────────────────────
 
 async def main():
+    await bot.set_my_commands(BOT_COMMANDS)
     await bot.delete_webhook(drop_pending_updates=True)
     provider_mode = "unset"
     if ":TEST:" in YOOKASSA_PROVIDER_TOKEN:
