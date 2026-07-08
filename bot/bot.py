@@ -25,16 +25,20 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MINIAPP_URL = os.getenv("MINIAPP_URL", "https://poprobui.railway.app")
 YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "")
-DEMO_USERNAMES = {
+GIFT_USERNAMES = {
     u.strip().lower().lstrip("@")
-    for u in os.getenv("DEMO_USERNAMES", "dariy_nazarov").split(",")
+    for u in os.getenv("GIFT_USERNAMES", "dariy_nazarov").split(",")
     if u.strip()
 }
-DEMO_USER_IDS = {
+GIFT_USER_IDS = {
     int(u.strip())
-    for u in os.getenv("DEMO_USER_IDS", "").split(",")
+    for u in os.getenv("GIFT_USER_IDS", "").split(",")
     if u.strip().isdigit()
 }
+BALANCE_DB_PATH = os.getenv(
+    "BALANCE_DB_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "balances.json"),
+)
 
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
@@ -74,6 +78,76 @@ TEST_INVOICES = {
         "amount": 50000,  # 500 ₽
     },
 }
+
+
+def format_money(amount: int) -> str:
+    rub = amount // 100
+    kop = amount % 100
+    return f"{rub} ₽" if kop == 0 else f"{rub},{kop:02d} ₽"
+
+
+def load_balances() -> dict:
+    try:
+        with open(BALANCE_DB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        logger.exception("Failed to load balances from %s", BALANCE_DB_PATH)
+        return {}
+
+
+def save_balances(data: dict) -> None:
+    os.makedirs(os.path.dirname(BALANCE_DB_PATH), exist_ok=True)
+    tmp_path = BALANCE_DB_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, BALANCE_DB_PATH)
+
+
+def balance_of(user_id: int) -> int:
+    return int(load_balances().get(str(user_id), 0))
+
+
+def add_balance(user_id: int, amount: int) -> int:
+    data = load_balances()
+    key = str(user_id)
+    data[key] = int(data.get(key, 0)) + amount
+    save_balances(data)
+    return data[key]
+
+
+def debit_balance(user_id: int, amount: int) -> int | None:
+    data = load_balances()
+    key = str(user_id)
+    current = int(data.get(key, 0))
+    if current < amount:
+        return None
+    data[key] = current - amount
+    save_balances(data)
+    return data[key]
+
+
+def has_gift_access(message: Message) -> bool:
+    username = (message.from_user.username or "").lower()
+    return message.from_user.id in GIFT_USER_IDS or username in GIFT_USERNAMES
+
+
+async def open_paid_test_from_balance(message: Message, test_id: str) -> bool:
+    info = TEST_INVOICES.get(test_id)
+    if not info:
+        return False
+    rest = debit_balance(message.from_user.id, info["amount"])
+    if rest is None:
+        return False
+    await message.answer(
+        f"Списал {format_money(info['amount'])} со счета.\n"
+        f"Баланс: <b>{format_money(rest)}</b>.\n\n"
+        "Жми «🧭 Пройти тест» — платная версия откроется сразу.",
+        parse_mode="HTML",
+        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
+    )
+    return True
 
 
 async def send_test_invoice(chat_id: int, test_id: str):
@@ -162,26 +236,6 @@ def kb_topup() -> InlineKeyboardMarkup:
     ])
 
 
-def kb_demo_paid() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(
-                text="🧪 Стандарт — dev-доступ",
-                web_app=WebAppInfo(url=miniapp_url("screen=test&tier=yovayshi&paid=1&demo=1")),
-            )],
-            [KeyboardButton(
-                text="🧪 Полный — dev-доступ",
-                web_app=WebAppInfo(url=miniapp_url("screen=test&tier=onett&paid=1&demo=1")),
-            )],
-            [
-                KeyboardButton(text="💳 Баланс"),
-                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url("screen=results"))),
-            ],
-        ],
-        resize_keyboard=True,
-    )
-
-
 def kb_back() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="← Назад", callback_data="back_main")]
@@ -218,7 +272,9 @@ async def handle_web_app_data(message: Message):
         logger.info("Invoice requested: test_id=%s consent_version=%s consent_at=%s",
                     test_id, consent.get("version"), consent.get("accepted_at"))
         if test_id:
-            await send_test_invoice(message.chat.id, test_id)
+            paid_from_balance = await open_paid_test_from_balance(message, test_id)
+            if not paid_from_balance:
+                await send_test_invoice(message.chat.id, test_id)
         return
 
     if action != "generate_pdf":
@@ -265,23 +321,15 @@ async def cmd_reset(message: Message):
     )
 
 
-def has_demo_access(message: Message) -> bool:
-    username = (message.from_user.username or "").lower()
-    return message.from_user.id in DEMO_USER_IDS or username in DEMO_USERNAMES
-
-
-@dp.message(Command("demo_paid", "gift"))
-async def cmd_demo_paid(message: Message):
-    if not has_demo_access(message):
-        await message.answer(
-            "Тестовый dev-доступ доступен только владельцу проекта. Для оплаты используй /balance.",
-            reply_markup=kb_main(),
-        )
+@dp.message(Command("gift"))
+async def cmd_gift(message: Message):
+    if not has_gift_access(message):
         return
+    balance = add_balance(message.from_user.id, 100000)
     await message.answer(
-        "Начислил тестовый dev-баланс 1000 ₽.\n\n"
-        "Это не реальный платеж и не чек ЮKassa — просто доступ для проверки платного прохождения.",
-        reply_markup=kb_demo_paid(),
+        f"Баланс пополнен на 1000 ₽.\n"
+        f"На счете: <b>{format_money(balance)}</b>.",
+        parse_mode="HTML",
     )
 
 
@@ -326,9 +374,12 @@ async def cmd_balance(message: Message):
 
 
 async def send_balance_menu(message: Message):
+    balance = balance_of(message.from_user.id)
     await message.answer(
-        "💳 <b>Тарифы и оплата</b>\n\n"
-        "Выбери тест. После оплаты он откроется автоматически.",
+        "💳 <b>Личный кабинет</b>\n\n"
+        f"Баланс: <b>{format_money(balance)}</b>\n\n"
+        "Выбери тест. Если на счете хватает денег, стоимость спишется с баланса. "
+        "Если нет — откроется оплата ЮKassa.",
         parse_mode="HTML",
         reply_markup=kb_topup()
     )
@@ -357,6 +408,23 @@ async def cb_back_main(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("pay_"))
 async def cb_pay(call: CallbackQuery):
     test_id = call.data.split("_", 1)[1]
+    info = TEST_INVOICES.get(test_id)
+    if info:
+        rest = debit_balance(call.from_user.id, info["amount"])
+        if rest is not None:
+            try:
+                await call.message.delete()
+            except Exception:
+                logger.exception("Failed to delete balance menu after account payment")
+            await call.message.answer(
+                f"Списал {format_money(info['amount'])} со счета.\n"
+                f"Баланс: <b>{format_money(rest)}</b>.\n\n"
+                "Жми «🧭 Пройти тест» — платная версия откроется сразу.",
+                parse_mode="HTML",
+                reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
+            )
+            await call.answer()
+            return
     if not YOOKASSA_PROVIDER_TOKEN:
         await call.answer("Платежи скоро будут подключены!", show_alert=True)
         return

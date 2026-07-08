@@ -18,6 +18,7 @@ build/
 # DB и отчёты — генерируются на сервере
 api/poprobui.db
 api/reports/
+bot/data/
 
 # OS
 .DS_Store
