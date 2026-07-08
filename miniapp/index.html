@@ -1290,13 +1290,10 @@ const PROF_RICH = {
   "C — Конвенциональный":{ emoji:"📋", salary:"65 000 – 280 000 ₽", description:"Порядок, точность, системность, данные и документы", profs:["Бухгалтер","Аналитик","Программист","Логист","Финансист","Администратор","Архивист"] },
 };
 
-// ── Neurocard: single-tree force-directed graph (canvas, no dependencies) ──
-// One root ("Ты") with a branch per completed test; hubs are that test's
-// scale scores, leaves are matched professions for the top-scoring hub.
-// Attraction along edges (spring) + repulsion between all nodes (Coulomb-like)
-// + gentle centering, integrated every frame — same shape as Obsidian's graph.
+// ── Profile map: core → profile planets → profession satellites ──────────
+// The visual model is intentionally simple: "Ты" is the biggest core, major
+// interest spheres orbit it, and small profession satellites orbit each sphere.
 const ROOT_ID = "__root__";
-const BRANCH_HUES = [172, 322, 42]; // teal / magenta / amber, one per test slot
 const POP_MS = 320; // per-node pop-in duration
 const CAM_PAD_TOP = 118, CAM_PAD_BOTTOM = 104, CAM_PAD_SIDE = 20;
 
@@ -1308,25 +1305,24 @@ let dragNode = null, downNode = null, moveDist = 0, hoveredNode = null;
 let hasShownTreeOnce = false;
 let camScale = 1, camCX = 0, camCY = 0;
 
-function rootRadius(doneCount) { return 9 + doneCount * 4; }
+function rootRadius(doneCount) { return 42 + Math.min(doneCount, 3) * 2; }
 
 function graphPhysics() {
   return {
-    repel: 1250,
-    spring: 0.0065,
-    restTrunk: 78,
-    restHub: 58,
+    repel: 1050,
+    spring: 0.0058,
+    restPlanet: 86,
     restSat: 28,
-    damping: 0.78,
-    maxSpeed: 2.15,
+    damping: 0.76,
+    maxSpeed: 1.75,
   };
 }
 
-function hubRadius(strengthSum, testCount) {
-  const confirmed = Math.min(testCount || 1, 3);
-  const total = Math.min(Math.max(strengthSum || 0, 0), 3);
-  const scorePart = Math.pow(total / 3, 0.72);
-  return 8 + scorePart * 18 + Math.max(0, confirmed - 1) * 1.5;
+function planetRadius(score, rank, testCount) {
+  const s = Math.max(0, Math.min(score || 0, 1));
+  const rankBoost = rank === 0 ? 11 : rank === 1 ? 6 : rank === 2 ? 3 : 0;
+  const confidence = Math.min(testCount || 1, 3) * 1.1;
+  return Math.min(36, 12 + Math.pow(s, 0.62) * 13 + rankBoost + confidence);
 }
 
 function leafRadius(confirmCount) {
@@ -1361,36 +1357,8 @@ function spawnNear(parent, jitter, angle) {
   };
 }
 
-// ── Build order: one flat list of "add this node" steps, root first, then
-// each completed test's branch in sequence — played back one at a time so
-// the tree visibly grows instead of appearing all at once.
-function buildTreeSchedule() {
-  const schedule = [];
-  const tree = loadTree();
-  const doneCount = TEST_SEQUENCE.filter(id => tree[id]).length;
-
-  schedule.push(() => {
-    const name = tg?.initDataUnsafe?.user?.first_name || "Ты";
-    addTreeNode({ id: ROOT_ID, label: name, x: canvasW / 2, y: canvasH / 2, vx: 0, vy: 0, r: rootRadius(doneCount), isRoot: true, hue: 250, sat: 65, light: 78, mass: 6, bornAt: performance.now() });
-  });
-
-  TEST_SEQUENCE.forEach((testId, idx) => {
-    if (tree[testId]) appendBranchToSchedule(schedule, testId, tree[testId], idx);
-  });
-  return schedule;
-}
-
-// Appends one test's branch (trunk → hubs → top-hub's profession leaves)
-// to an existing schedule array. Leaves only grow off the top-scoring hub —
-// keeps density readable instead of every scale sprouting a profession list.
 // Conceptual cross-reference: ДДО, Йовайши and RIASEC are three different
-// instruments, but several of their scales measure the SAME underlying
-// trait (Образ / Эстетика / A-Художник are all "artistic interest" — this
-// is a documented overlap between Holland/Klimov/Yovayshi typologies, not
-// a coincidence). Scales in the same group share ONE hub node across
-// branches instead of drawing three disconnected same-meaning circles.
-// Scales with no equivalent in the other two tests (Природа, Экстремал,
-// E-Предприниматель) simply form their own single-member group.
+// instruments, but several of their scales measure the SAME underlying trait.
 const HUB_GROUP_OF = {
   "Техника": "tech", "Производство": "tech", "R — Реалист": "tech",
   "Человек": "social", "Люди": "social", "S — Социальный": "social",
@@ -1405,81 +1373,115 @@ const HUB_GROUP_LABEL = {
   tech: "Техническое", social: "Социальное", art: "Творческое", data: "Системное",
   research: "Исследовательское", nature: "Природа", extreme: "Экстремал", business: "Предприниматель",
 };
+const HUB_GROUP_HUE = {
+  tech: 172, social: 168, art: 176, data: 182,
+  research: 318, nature: 166, extreme: 320, business: 38,
+};
 
-function appendBranchToSchedule(schedule, testId, result, idx) {
-  const hue = (BRANCH_HUES[idx % BRANCH_HUES.length] + hueJitter + 360) % 360;
-  const trunkId = "trunk::" + testId;
-  const angle = (idx / TEST_SEQUENCE.length) * Math.PI * 2 - Math.PI / 2;
+function aggregateProfile(tree) {
+  const groups = new Map();
+  const done = TEST_SEQUENCE.filter(id => tree[id]);
+
+  done.forEach(testId => {
+    const result = tree[testId];
+    const sorted = Object.entries(result.scores || {}).sort((a, b) => b[1] - a[1]);
+    const maxScore = sorted[0]?.[1] || 1;
+    sorted.forEach(([label, score]) => {
+      const groupId = HUB_GROUP_OF[label] || ("solo::" + label);
+      const norm = Math.max(0, score / maxScore);
+      if (!groups.has(groupId)) {
+        groups.set(groupId, {
+          id: groupId,
+          label: HUB_GROUP_LABEL[groupId] || label,
+          hue: HUB_GROUP_HUE[groupId] ?? 210,
+          strengthSum: 0,
+          testIds: new Set(),
+          bestLabel: label,
+          bestNorm: 0,
+          profs: new Map(),
+        });
+      }
+      const g = groups.get(groupId);
+      g.strengthSum += norm;
+      g.testIds.add(testId);
+      if (norm > g.bestNorm) { g.bestNorm = norm; g.bestLabel = label; }
+      const rich = PROF_RICH[label] || {};
+      (rich.profs || []).slice(0, 6).forEach((prof, i) => {
+        g.profs.set(prof, (g.profs.get(prof) || 0) + norm * (1 - i * 0.08));
+      });
+    });
+  });
+
+  return Array.from(groups.values())
+    .map(g => ({ ...g, score: done.length ? g.strengthSum / done.length : 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+
+// ── Build order: root first, then profile spheres, then profession satellites.
+function buildTreeSchedule() {
+  const schedule = [];
+  const tree = loadTree();
+  const doneCount = TEST_SEQUENCE.filter(id => tree[id]).length;
+  const planets = aggregateProfile(tree);
 
   schedule.push(() => {
-    const root = treeNodeById.get(ROOT_ID);
-    const p = spawnNear(root, 0, angle);
-    addTreeNode({ id: trunkId, label: TEST_META[testId].name, testId, x: p.x, y: p.y, vx: 0, vy: 0, r: 6, isTrunk: true, hue, sat: 45, light: 60, mass: 2, bornAt: performance.now() });
-    treeEdges.push({ a: ROOT_ID, b: trunkId, kind: "trunk" });
-  });
-
-  // Hubs are keyed by CONCEPT GROUP, not by test — if this test's "Техника"
-  // lands in the same group as another test's "R — Реалист", they become
-  // one shared node instead of two disconnected same-meaning circles.
-  const sorted = Object.entries(result.scores).sort((a, b) => b[1] - a[1]);
-  const maxScore = sorted[0]?.[1] || 1;
-  const hubIdForLabel = {};
-  sorted.forEach(([label, score]) => {
-    const groupId = HUB_GROUP_OF[label] || ("solo::" + testId + "::" + label);
-    const sharedHubId = "hub::" + groupId;
-    const norm = score / maxScore; // 0-1, so hub size stays comparable across tests with very different raw scales
-    hubIdForLabel[label] = sharedHubId;
-    schedule.push(() => {
-      const trunk = treeNodeById.get(trunkId);
-      let node = treeNodeById.get(sharedHubId);
-      if (!node) {
-        const p = spawnNear(trunk, 22, null);
-        node = {
-          id: sharedHubId, label: HUB_GROUP_LABEL[groupId] || label,
-          x: p.x, y: p.y, vx: 0, vy: 0, r: hubRadius(norm, 1), isHub: true,
-          hue, sat: 70, light: 55, mass: 3.5, bornAt: performance.now(),
-          normSum: norm, fromTests: new Set([testId]), topScore: norm,
-        };
-        addTreeNode(node);
-      } else {
-        node.normSum += norm;
-        node.fromTests.add(testId);
-        node.topScore = Math.max(node.topScore || 0, norm);
-        node.r = hubRadius(node.normSum, node.fromTests.size);
-        node.mass = 3.5 + node.fromTests.size * 1.2 + node.r * 0.08;
-        node.isConverged = node.fromTests.size >= 2;
-        node.bornAt = performance.now(); // pulse to flag the new confirmation
-      }
-      treeEdges.push({ a: trunkId, b: sharedHubId, kind: "branch", converged: node.fromTests.size >= 2 });
+    const name = tg?.initDataUnsafe?.user?.first_name || "Ты";
+    addTreeNode({
+      id: ROOT_ID, label: name,
+      x: canvasW / 2, y: canvasH / 2,
+      vx: 0, vy: 0, r: rootRadius(doneCount),
+      isRoot: true, hue: 250, sat: 65, light: 12,
+      mass: 18, fixedCore: true, bornAt: performance.now(),
     });
   });
 
-  // Profession leaves are keyed by NAME, not per-branch — if two tests both
-  // point at "Инженер", they share one node instead of drawing two identical
-  // ones. Attached to this test's own top-scoring hub (now possibly shared).
-  const topLabel = sorted[0]?.[0];
-  const topHubId = hubIdForLabel[topLabel];
-  const rich = PROF_RICH[topLabel] || {};
-  const limit = testId === "onett" ? 6 : testId === "yovayshi" ? 5 : 4;
-  (rich.profs || []).slice(0, limit).forEach(profName => {
-    const profId = "prof::" + profName;
+  const count = Math.max(planets.length, 1);
+  planets.forEach((planet, rank) => {
+    const id = "hub::" + planet.id;
+    const angle = -Math.PI / 2 + rank * (Math.PI * 2 / count);
+    const orbit = 118 + Math.min(rank, 3) * 8;
     schedule.push(() => {
-      const hub = treeNodeById.get(topHubId);
-      let node = treeNodeById.get(profId);
-      if (!node) {
-        const p = spawnNear(hub, 18, null);
-        node = { id: profId, label: profName, x: p.x, y: p.y, vx: 0, vy: 0, r: leafRadius(1), isLeaf: true, hue, sat: 55, light: 46, mass: 1, bornAt: performance.now(), confirmCount: 1 };
-        addTreeNode(node);
-      } else {
-        node.confirmCount = (node.confirmCount || 1) + 1;
-        node.r = leafRadius(node.confirmCount);
-        node.mass += 0.6;
-        node.isConverged = node.confirmCount >= 2;
-        node.bornAt = performance.now(); // little re-pop pulse to flag the new confirmation
-      }
-      treeEdges.push({ a: topHubId, b: profId, kind: "leaf", converged: node.confirmCount >= 2 });
+      const root = treeNodeById.get(ROOT_ID);
+      const r = planetRadius(planet.score, rank, planet.testIds.size);
+      const p = {
+        x: root.x + Math.cos(angle) * orbit,
+        y: root.y + Math.sin(angle) * orbit,
+      };
+      addTreeNode({
+        id, label: planet.label, x: p.x, y: p.y, vx: 0, vy: 0,
+        r, isHub: true, isPrimary: rank < 3,
+        hue: (planet.hue + hueJitter + 360) % 360, sat: rank < 4 ? 66 : 62, light: rank < 4 ? 55 : 50,
+        mass: 6 + r * 0.18, score: planet.score, rank,
+        fromTests: planet.testIds, isConverged: planet.testIds.size >= 2,
+        bornAt: performance.now(),
+      });
+      treeEdges.push({ a: ROOT_ID, b: id, kind: "planet", converged: planet.testIds.size >= 2, strength: planet.score });
+    });
+
+    const profs = Array.from(planet.profs.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, rank < 3 ? 5 : 2);
+    profs.forEach(([profName, weight], i) => {
+      const profId = "prof::" + planet.id + "::" + profName;
+      const satAngle = angle + (i - (profs.length - 1) / 2) * 0.48;
+      const satOrbit = 54 + i * 6;
+      schedule.push(() => {
+        const hub = treeNodeById.get(id);
+        if (!hub) return;
+        addTreeNode({
+          id: profId, label: profName,
+          x: hub.x + Math.cos(satAngle) * satOrbit,
+          y: hub.y + Math.sin(satAngle) * satOrbit,
+          vx: 0, vy: 0, r: leafRadius(weight > 1.6 ? 2 : 1),
+          isLeaf: true, showLabel: rank < 3,
+          hue: (planet.hue + hueJitter + 360) % 360, sat: 58, light: 45,
+          mass: 1.1, bornAt: performance.now(),
+        });
+        treeEdges.push({ a: id, b: profId, kind: "leaf", converged: rank < 3 });
+      });
     });
   });
+  return schedule;
 }
 
 function runSchedule(schedule, perDelay) {
@@ -1502,11 +1504,9 @@ function rebuildTreeAnimated() {
   runSchedule(buildTreeSchedule(), 95);
   hasShownTreeOnce = true;
 }
-// Grows just the newly-finished test's branch onto the existing tree.
-function growNewBranch(testId, result, idx) {
-  const schedule = [];
-  appendBranchToSchedule(schedule, testId, result, idx);
-  runSchedule(schedule, 130);
+// Rebuilds the profile map after a test changes the aggregate picture.
+function growNewBranch() {
+  rebuildTreeAnimated();
 }
 
 function treeStep() {
@@ -1523,14 +1523,15 @@ function treeStep() {
         a.vx += fx / a.mass; a.vy += fy / a.mass;
         if (b !== dragNode) { b.vx -= fx / b.mass; b.vy -= fy / b.mass; }
       }
-      a.vx += (canvasW / 2 - a.x) * 0.00025;
-      a.vy += (canvasH / 2 - a.y) * 0.00025;
+      const centerPull = a.isRoot ? 0.006 : 0.00018;
+      a.vx += (canvasW / 2 - a.x) * centerPull;
+      a.vy += (canvasH / 2 - a.y) * centerPull;
     }
   }
   for (const e of treeEdges) {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
-    const baseRest = e.kind === "trunk" ? treePhysics.restTrunk : e.kind === "branch" ? treePhysics.restHub : treePhysics.restSat;
+    const baseRest = e.kind === "planet" ? treePhysics.restPlanet : treePhysics.restSat;
     const rest = baseRest + (a.r + b.r) * (e.kind === "leaf" ? 0.9 : 0.65);
     let dx = b.x - a.x, dy = b.y - a.y;
     const d = Math.max(Math.sqrt(dx * dx + dy * dy), 0.01);
@@ -1559,7 +1560,7 @@ function updateCamera() {
   if (treeNodes.length) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const p of treeNodes) {
-      const labelPad = (p.isHub || p.isRoot || p.isConverged) ? Math.min(92, Math.max(28, p.label.length * 4.8)) : 6;
+      const labelPad = (p.isHub || p.isRoot || p.isConverged || p.showLabel) ? Math.min(92, Math.max(22, p.label.length * 4.4)) : 6;
       minX = Math.min(minX, p.x - p.r - labelPad);
       maxX = Math.max(maxX, p.x + p.r + labelPad);
       minY = Math.min(minY, p.y - p.r - 24);
@@ -1595,7 +1596,7 @@ function treeDraw() {
     ctxEl.strokeStyle = e.converged
       ? "rgba(240,180,60,.55)"
       : (dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)");
-    ctxEl.lineWidth = (e.kind === "trunk" ? 1.4 : e.converged ? 1.6 : 1) / camScale;
+    ctxEl.lineWidth = (e.kind === "planet" ? 1.5 + (e.strength || 0) * 1.4 : e.converged ? 1.4 : 0.9) / camScale;
     ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
   }
   for (const p of treeNodes) {
@@ -1603,7 +1604,7 @@ function treeDraw() {
     const isHovered = p === hoveredNode;
     ctxEl.globalAlpha = ease;
     ctxEl.beginPath();
-    ctxEl.shadowBlur = (p.isRoot ? 22 : p.isConverged ? 16 : p.isHub ? 13 : p.isTrunk ? 9 : 5) + (isHovered ? 10 : 0);
+    ctxEl.shadowBlur = (p.isRoot ? 28 : p.isConverged ? 16 : p.isHub ? 13 : 5) + (isHovered ? 10 : 0);
     ctxEl.shadowColor = p.isConverged ? "rgba(240,180,60,.65)" : `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .7)`;
     ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     ctxEl.arc(p.x, p.y, p.r * ease, 0, Math.PI * 2);
@@ -1629,12 +1630,14 @@ function treeDraw() {
   }
   ctxEl.textAlign = "center";
   for (const p of treeNodes) {
-    if (!p.isHub && !p.isRoot && !p.isConverged) continue;
+    if (!p.isHub && !p.isRoot && !p.isConverged && !p.showLabel) continue;
     const ease = Math.min(1, (now - p.bornAt) / POP_MS);
     ctxEl.globalAlpha = ease;
-    const labelSize = p.isRoot ? 13 : p.isHub ? Math.max(11, Math.min(15, p.r * 0.55)) : 11;
-    ctxEl.font = `700 ${labelSize}px Outfit, system-ui, sans-serif`;
-    ctxEl.fillStyle = p.isConverged ? (dark ? "hsl(42, 95%, 68%)" : "hsl(36, 90%, 38%)") : (dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)");
+    const labelSize = p.isRoot ? 14 : p.isHub ? Math.max(11, Math.min(16, p.r * 0.48)) : 9.5;
+    ctxEl.font = `${p.isLeaf ? 650 : 700} ${labelSize}px Outfit, system-ui, sans-serif`;
+    ctxEl.fillStyle = p.isLeaf
+      ? (dark ? "rgba(237,234,251,.72)" : "rgba(22,19,42,.62)")
+      : p.isConverged ? (dark ? "hsl(42, 95%, 68%)" : "hsl(36, 90%, 38%)") : (dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)");
     ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
     ctxEl.globalAlpha = 1;
   }
@@ -1697,10 +1700,7 @@ function wireTreeInteraction() {
     }
   }
   function onUp() {
-    if (downNode && moveDist < 6 && downNode.testId) {
-      const next = nextTestId();
-      if (downNode.testId === next) openPreviewSheet(next);
-    }
+    if (downNode && moveDist < 6 && downNode.isRoot) onGraphCta();
     dragNode = null; downNode = null;
     canvasEl.classList.remove("dragging");
   }
