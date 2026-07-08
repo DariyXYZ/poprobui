@@ -29,7 +29,7 @@ YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "")
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "14"
+MINIAPP_VERSION = "15"
 
 
 def miniapp_url(extra: str = "") -> str:
@@ -45,6 +45,7 @@ BOT_COMMANDS = [
     BotCommand(command="test", description="Пройти тест"),
     BotCommand(command="balance", description="Тарифы и оплата"),
     BotCommand(command="help", description="Как работает Попробуй"),
+    BotCommand(command="privacy", description="Согласие и политика данных"),
 ]
 
 
@@ -182,6 +183,9 @@ async def handle_web_app_data(message: Message):
 
     if action == "request_invoice":
         test_id = data.get("test_id")
+        consent = data.get("consent") or {}
+        logger.info("Invoice requested: test_id=%s consent_version=%s consent_at=%s",
+                    test_id, consent.get("version"), consent.get("accepted_at"))
         if test_id:
             await send_test_invoice(message.chat.id, test_id)
         return
@@ -192,6 +196,9 @@ async def handle_web_app_data(message: Message):
     if not scores:
         return
     test_id = data.get("test_id", "ddo")
+    consent = data.get("consent") or {}
+    logger.info("PDF requested: test_id=%s consent_version=%s consent_at=%s",
+                test_id, consent.get("version"), consent.get("accepted_at"))
     processing = await message.answer("⏳ Генерируем PDF...")
     try:
         from pdf import generate_pdf
@@ -222,6 +229,17 @@ async def cmd_menu(message: Message):
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     await send_how_it_works(message)
+
+
+@dp.message(Command("privacy"))
+async def cmd_privacy(message: Message):
+    base_url = MINIAPP_URL.rstrip("/")
+    await message.answer(
+        "Документы по персональным данным:\n\n"
+        f"Согласие: {base_url}/consent.html\n"
+        f"Политика: {base_url}/privacy.html",
+        reply_markup=kb_main(),
+    )
 
 
 async def send_how_it_works(message: Message):

@@ -584,6 +584,11 @@
   }
   .btn-simple .btn-copy { align-items: center; text-align: center; }
   .btn:active { opacity: .82; transform: scale(.98); }
+  .btn:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+    transform: none;
+  }
   .btn-primary { background: var(--accent); color: #fff; }
   .btn-secondary {
     background: var(--surface);
@@ -655,6 +660,43 @@
   .hist-btn .ui-icon { width: 15px; height: 15px; vertical-align: -3px; margin-right: 5px; }
   .hist-btn-view { background: var(--surface2); color: var(--text2); }
   .hist-btn-pdf { background: var(--accent); color: #fff; }
+
+  /* ── Legal consent ── */
+  .legal-consent {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin: 0 0 14px;
+  }
+  .legal-consent-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .legal-consent input {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .legal-consent-text {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text2);
+  }
+  .legal-consent-text a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 650;
+  }
+  .legal-note {
+    margin-top: 8px;
+    font-size: 11.2px;
+    line-height: 1.4;
+    color: var(--muted);
+  }
 
   /* ── Loading ── */
   .loader {
@@ -817,6 +859,10 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 const TG_USER_ID = tg?.initDataUnsafe?.user?.id || 0;
+const CONSENT_VERSION = "2026-07-09";
+const CONSENT_STORAGE_KEY = "poprobui_consent";
+const PRIVACY_URL = "privacy.html";
+const CONSENT_URL = "consent.html";
 
 // ── State ────────────────────────────────────────────────────────────────
 let selectedTest = "ddo";
@@ -828,6 +874,44 @@ let resultScores = null;
 let resultTopTypes = [];
 let resultRecommendations = [];
 let resultTestId = "ddo";
+
+function currentConsent() {
+  try { return JSON.parse(localStorage.getItem(CONSENT_STORAGE_KEY) || "null"); } catch (e) { return null; }
+}
+function hasConsent() {
+  const c = currentConsent();
+  return !!(c && c.accepted === true && c.version === CONSENT_VERSION);
+}
+function saveConsent() {
+  localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({
+    accepted: true,
+    version: CONSENT_VERSION,
+    accepted_at: new Date().toISOString(),
+    source: "telegram_miniapp",
+    tg_user_id: TG_USER_ID || null,
+  }));
+}
+function legalConsentBlock(testId) {
+  if (hasConsent()) return "";
+  return `
+    <div class="legal-consent">
+      <label class="legal-consent-row">
+        <input type="checkbox" id="legal-consent-check" onchange="syncConsentCta('${testId}')">
+        <span class="legal-consent-text">
+          Я согласен на обработку персональных данных и ознакомлен с
+          <a href="${CONSENT_URL}" target="_blank" rel="noopener">согласием</a>
+          и <a href="${PRIVACY_URL}" target="_blank" rel="noopener">политикой</a>.
+        </span>
+      </label>
+      <div class="legal-note">Если тебе нет 18 лет, попроси родителя или законного представителя подтвердить согласие.</div>
+    </div>
+  `;
+}
+function syncConsentCta(testId) {
+  const btn = document.getElementById("start-test-btn");
+  if (!btn) return;
+  btn.disabled = !hasConsent() && !document.getElementById("legal-consent-check")?.checked;
+}
 
 // ── Test definitions ─────────────────────────────────────────────────────
 const TESTS = {
@@ -1177,7 +1261,7 @@ function downloadPDF() {
   if (!tg) { alert("Открой этот тест через бота в Telegram — иначе PDF не отправить"); return; }
   if (!resultScores) { tg.showAlert("Результаты не найдены — пройди тест заново"); return; }
   try {
-    tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes, test_id: resultTestId }));
+    tg.sendData(JSON.stringify({ action: "generate_pdf", scores: resultScores, top_types: resultTopTypes, test_id: resultTestId, consent: currentConsent() }));
   } catch(e) {
     console.error("sendData failed:", e);
     tg.showAlert("Вернись в чат с ботом и открой тест через кнопку «🧭 Пройти тест» или «📊 Результаты» — тогда PDF придёт сюда");
@@ -1802,11 +1886,21 @@ function openPreviewSheet(testId) {
     <div class="tier-feats" style="margin-bottom:18px">
       ${meta.feats.map(f => `<div class="tier-feat">${f}</div>`).join("")}
     </div>
-    <button class="btn btn-primary" onclick="confirmStartTest('${testId}')">${testId === FREE_TEST_ID ? cta("Начать тест", "Бесплатно", meta.icon) : cta("Оплатить и начать", meta.price, meta.icon)}</button>
+    ${legalConsentBlock(testId)}
+    <button class="btn btn-primary" id="start-test-btn" onclick="confirmStartTest('${testId}')" ${hasConsent() ? "" : "disabled"}>${testId === FREE_TEST_ID ? cta("Начать тест", "Бесплатно", meta.icon) : cta("Оплатить и начать", meta.price, meta.icon)}</button>
   `;
+  syncConsentCta(testId);
   showSheet();
 }
 function confirmStartTest(testId) {
+  if (!hasConsent()) {
+    if (!document.getElementById("legal-consent-check")?.checked) {
+      tg?.showAlert?.("Перед стартом нужно подтвердить согласие на обработку данных");
+      syncConsentCta(testId);
+      return;
+    }
+    saveConsent();
+  }
   closeSheet();
   if (testId === FREE_TEST_ID) {
     selectedTest = testId;
@@ -1824,7 +1918,7 @@ function confirmStartTest(testId) {
 function requestInvoice(testId) {
   if (!tg) { alert("Открой этот тест через бота в Telegram, чтобы оплатить"); return; }
   try {
-    tg.sendData(JSON.stringify({ action: "request_invoice", test_id: testId }));
+    tg.sendData(JSON.stringify({ action: "request_invoice", test_id: testId, consent: currentConsent() }));
   } catch (e) {
     console.error("sendData failed:", e);
     tg.showAlert("Вернись в чат с ботом и нажми «Баланс», чтобы оплатить этот тест");
