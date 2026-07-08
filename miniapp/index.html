@@ -445,7 +445,7 @@
   #tree-canvas.dragging { cursor: grabbing; }
   .graph-header {
     position: absolute; top: 0; left: 0; right: 0;
-    padding: 22px 20px 0;
+    padding: 72px 20px 0;
     text-align: center;
     pointer-events: none;
     z-index: 2;
@@ -466,13 +466,15 @@
   }
   .graph-nav {
     position: absolute;
-    top: 22px; right: 20px;
+    top: 22px;
     display: flex;
     align-items: center;
     gap: 8px;
     pointer-events: auto;
     z-index: 3;
   }
+  .graph-nav-left { left: 20px; }
+  .graph-nav-right { right: 20px; }
   .balance-pill-mini {
     height: 36px;
     display: inline-flex;
@@ -745,13 +747,15 @@
     <div class="intro-title graph-title">Твоя карта интересов</div>
     <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
-  <div class="graph-nav">
+  <div class="graph-nav graph-nav-left">
     <div class="balance-pill-mini is-empty" id="wallet-balance-pill">0 ₽</div>
-    <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты" aria-label="Мои результаты">
-      <svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/></svg>
-    </button>
     <button class="icon-btn-mini" onclick="openPricingSheet()" title="Тарифы" aria-label="Тарифы">
       <svg class="ui-icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+    </button>
+  </div>
+  <div class="graph-nav graph-nav-right">
+    <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты" aria-label="Мои результаты">
+      <svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/></svg>
     </button>
     <button class="icon-btn-mini" onclick="randomizeLook()" title="Другой вариант карты" aria-label="Другой вариант карты">
       <svg class="ui-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
