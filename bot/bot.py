@@ -29,7 +29,7 @@ YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "")
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "15"
+MINIAPP_VERSION = "16"
 
 
 def miniapp_url(extra: str = "") -> str:
@@ -43,6 +43,7 @@ BOT_COMMANDS = [
     BotCommand(command="start", description="Открыть меню и начать заново"),
     BotCommand(command="menu", description="Показать кнопки мини-аппа"),
     BotCommand(command="test", description="Пройти тест"),
+    BotCommand(command="reset", description="Сбросить тест на этом устройстве"),
     BotCommand(command="balance", description="Тарифы и оплата"),
     BotCommand(command="help", description="Как работает Попробуй"),
     BotCommand(command="privacy", description="Согласие и политика данных"),
@@ -223,6 +224,14 @@ async def cmd_menu(message: Message):
     await message.answer(
         "Меню открыто. Если кнопки пропали, используй /menu или /balance.",
         reply_markup=kb_main(),
+    )
+
+
+@dp.message(Command("reset"))
+async def cmd_reset(message: Message):
+    await message.answer(
+        "Готово. Открой кнопку «🧭 Пройти тест» ниже — мини-апп очистит локальную карту, историю и согласие на этом устройстве.",
+        reply_markup=kb_main("reset=1"),
     )
 
 

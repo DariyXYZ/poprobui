@@ -1044,6 +1044,26 @@ function saveTreeResult(testId, scores, topTypes) {
   tree[testId] = { scores, top_types: topTypes };
   localStorage.setItem("poprobui_tree", JSON.stringify(tree));
 }
+function resetLocalUserState() {
+  localStorage.removeItem("poprobui_tree");
+  localStorage.removeItem("poprobui_history");
+  localStorage.removeItem(CONSENT_STORAGE_KEY);
+  selectedTest = FREE_TEST_ID;
+  questions = [];
+  answers = {};
+  currentQ = 0;
+  resultId = null;
+  resultScores = null;
+  resultTopTypes = [];
+  resultRecommendations = [];
+  resultTestId = FREE_TEST_ID;
+  const sheet = document.getElementById("sheet-overlay");
+  if (sheet) sheet.classList.remove("active");
+  hasShownTreeOnce = false;
+  rebuildTreeAnimated();
+  updateGraphStatus();
+  showScreen("screen-intro");
+}
 function completedTests() {
   const tree = loadTree();
   return TEST_SEQUENCE.filter(id => tree[id]);
@@ -2065,7 +2085,9 @@ treeLoop();
 // ── URL params on load (e.g. after payment: ?screen=test&tier=onett&paid=1) ──
 (function() {
   const p = new URLSearchParams(window.location.search);
-  if (p.get("screen") === "results") {
+  if (p.get("reset") === "1") {
+    resetLocalUserState();
+  } else if (p.get("screen") === "results") {
     showHistory();
   } else if (p.get("screen") === "test") {
     const tier = p.get("tier");
