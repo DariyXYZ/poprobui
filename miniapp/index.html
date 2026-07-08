@@ -468,10 +468,27 @@
     position: absolute;
     top: 22px; right: 20px;
     display: flex;
+    align-items: center;
     gap: 8px;
     pointer-events: auto;
     z-index: 3;
   }
+  .balance-pill-mini {
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 11px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(18, 15, 35, .06);
+    white-space: nowrap;
+  }
+  .balance-pill-mini.is-empty { color: var(--muted); }
   .icon-btn-mini {
     width: 36px; height: 36px;
     border-radius: 9px;
@@ -729,6 +746,7 @@
     <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
   <div class="graph-nav">
+    <div class="balance-pill-mini is-empty" id="wallet-balance-pill">0 ₽</div>
     <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты" aria-label="Мои результаты">
       <svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/></svg>
     </button>
@@ -858,11 +876,13 @@ const API_URL = "https://b367ca9ad96ac3.lhr.life";
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
+const URL_PARAMS = new URLSearchParams(window.location.search);
 const TG_USER_ID = tg?.initDataUnsafe?.user?.id || 0;
 const CONSENT_VERSION = "2026-07-09";
 const CONSENT_STORAGE_KEY = "poprobui_consent";
 const PRIVACY_URL = "privacy.html";
 const CONSENT_URL = "consent.html";
+let walletBalanceCents = Math.max(0, parseInt(URL_PARAMS.get("bal") || "0", 10) || 0);
 
 // ── State ────────────────────────────────────────────────────────────────
 let selectedTest = "ddo";
@@ -874,6 +894,18 @@ let resultScores = null;
 let resultTopTypes = [];
 let resultRecommendations = [];
 let resultTestId = "ddo";
+
+function formatRub(cents) {
+  const rub = Math.floor(Math.max(0, cents || 0) / 100);
+  const kop = Math.max(0, cents || 0) % 100;
+  return kop ? `${rub},${String(kop).padStart(2, "0")} ₽` : `${rub} ₽`;
+}
+function updateWalletBadge() {
+  const el = document.getElementById("wallet-balance-pill");
+  if (!el) return;
+  el.textContent = formatRub(walletBalanceCents);
+  el.classList.toggle("is-empty", walletBalanceCents <= 0);
+}
 
 function currentConsent() {
   try { return JSON.parse(localStorage.getItem(CONSENT_STORAGE_KEY) || "null"); } catch (e) { return null; }
@@ -1035,6 +1067,7 @@ const TEST_META = {
     feats: ["Профиль по 6 направлениям RIASEC", "ТОП-10 профессий с зарплатами", "Методика Минтруда США (O*NET)"] },
 };
 const FREE_TEST_ID = "ddo";
+const TEST_PRICE_CENTS = { yovayshi: 30000, onett: 50000 };
 
 function loadTree() {
   try { return JSON.parse(localStorage.getItem("poprobui_tree") || "{}"); } catch (e) { return {}; }
@@ -1883,7 +1916,7 @@ function openPricingSheet() {
   document.getElementById("sheet-body").innerHTML = `
     <div class="sheet-handle"></div>
     <div class="tier-name" style="font-size:18px;margin-bottom:4px">Тарифы</div>
-    <div class="tier-meta" style="margin-bottom:16px">Отдельная оплата за каждый тест. После оплаты тест открывается сразу.</div>
+    <div class="tier-meta" style="margin-bottom:16px">Пополняй баланс в Telegram. Стоимость теста списывается при старте.</div>
     ${rows}
   `;
   showSheet();
@@ -1907,7 +1940,7 @@ function openPreviewSheet(testId) {
       ${meta.feats.map(f => `<div class="tier-feat">${f}</div>`).join("")}
     </div>
     ${legalConsentBlock(testId)}
-    <button class="btn btn-primary" id="start-test-btn" onclick="confirmStartTest('${testId}')" ${hasConsent() ? "" : "disabled"}>${testId === FREE_TEST_ID ? cta("Начать тест", "Бесплатно", meta.icon) : cta("Оплатить и начать", meta.price, meta.icon)}</button>
+    <button class="btn btn-primary" id="start-test-btn" onclick="confirmStartTest('${testId}')" ${hasConsent() ? "" : "disabled"}>${testId === FREE_TEST_ID ? cta("Начать тест", "Бесплатно", meta.icon) : cta("Списать с баланса", meta.price, meta.icon)}</button>
   `;
   syncConsentCta(testId);
   showSheet();
@@ -1927,21 +1960,18 @@ function confirmStartTest(testId) {
     startTest();
     return;
   }
-  requestInvoice(testId);
+  requestPurchase(testId);
 }
 
-// Paid tiers can't be started directly — ask the bot to send a Telegram
-// invoice in chat (sendData only works when the Mini App was opened via
-// the ReplyKeyboardMarkup button, which is how every entry point here works).
-// The Mini App closes after sendData; payment_success in bot.py reopens it
-// straight into the paid test via the tier param.
-function requestInvoice(testId) {
-  if (!tg) { alert("Открой этот тест через бота в Telegram, чтобы оплатить"); return; }
+function requestPurchase(testId) {
+  if (!tg) { alert("Открой этот тест через бота в Telegram, чтобы списать баланс"); return; }
+  const price = TEST_PRICE_CENTS[testId] || 0;
   try {
-    tg.sendData(JSON.stringify({ action: "request_invoice", test_id: testId, consent: currentConsent() }));
+    tg.sendData(JSON.stringify({ action: "request_purchase", test_id: testId, price, consent: currentConsent() }));
+    tg.close();
   } catch (e) {
     console.error("sendData failed:", e);
-    tg.showAlert("Вернись в чат с ботом и нажми «Баланс», чтобы оплатить этот тест");
+    tg.showAlert("Вернись в чат с ботом и нажми «Баланс», чтобы пополнить счет");
   }
 }
 
@@ -2078,13 +2108,14 @@ document.addEventListener("keydown", e => {
 
 // ── Boot ─────────────────────────────────────────────────────────────────
 initStaticCtas();
+updateWalletBadge();
 initTreeCanvas();
 renderGraphScreen();
 treeLoop();
 
 // ── URL params on load (e.g. after payment: ?screen=test&tier=onett&paid=1) ──
 (function() {
-  const p = new URLSearchParams(window.location.search);
+  const p = URL_PARAMS;
   if (p.get("reset") === "1") {
     resetLocalUserState();
   } else if (p.get("screen") === "results") {

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
@@ -43,22 +44,32 @@ BALANCE_DB_PATH = os.getenv(
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "16"
+MINIAPP_VERSION = "17"
 
 
 def miniapp_url(extra: str = "") -> str:
     sep = "&" if extra else ""
     return f"{MINIAPP_URL}?v={MINIAPP_VERSION}{sep}{extra}"
 
+
+def wallet_extra(user_id: int | None, extra: str = "") -> str:
+    parts = []
+    if extra:
+        parts.append(extra)
+    if user_id is not None:
+        parts.append(f"bal={balance_of(user_id)}")
+    return "&".join(parts)
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+AWAITING_TOPUP_USERS: set[int] = set()
 
 BOT_COMMANDS = [
     BotCommand(command="start", description="Открыть меню и начать заново"),
     BotCommand(command="menu", description="Показать кнопки мини-аппа"),
     BotCommand(command="test", description="Пройти тест"),
     BotCommand(command="reset", description="Сбросить тест на этом устройстве"),
-    BotCommand(command="balance", description="Тарифы и оплата"),
+    BotCommand(command="balance", description="Баланс и пополнение"),
     BotCommand(command="help", description="Как работает Попробуй"),
     BotCommand(command="privacy", description="Согласие и политика данных"),
 ]
@@ -85,6 +96,17 @@ def format_money(amount: int) -> str:
     rub = amount // 100
     kop = amount % 100
     return f"{rub} ₽" if kop == 0 else f"{rub},{kop:02d} ₽"
+
+
+def parse_money_input(text: str) -> int | None:
+    cleaned = (text or "").lower().replace(",", ".")
+    cleaned = re.sub(r"[^0-9.]", "", cleaned)
+    if not cleaned:
+        return None
+    try:
+        return int(round(float(cleaned) * 100))
+    except ValueError:
+        return None
 
 
 def load_balances() -> dict:
@@ -146,7 +168,7 @@ async def open_paid_test_from_balance(message: Message, test_id: str) -> bool:
         f"Баланс: <b>{format_money(rest)}</b>.\n\n"
         "Жми «🧭 Пройти тест» — платная версия откроется сразу.",
         parse_mode="HTML",
-        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
+        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1", message.from_user.id),
     )
     return True
 
@@ -253,17 +275,17 @@ async def send_topup_invoice(chat_id: int, amount: int):
 
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
-def kb_main(test_url_extra: str = "") -> ReplyKeyboardMarkup:
+def kb_main(test_url_extra: str = "", user_id: int | None = None) -> ReplyKeyboardMarkup:
     # test_url_extra lets the primary button carry state (e.g. after payment,
     # "screen=test&tier=X&paid=1") while staying a ReplyKeyboardMarkup button —
     # sendData() only works for Mini Apps opened this way, not via inline
     # buttons, so every entry point into a test must go through this keyboard.
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=miniapp_url(test_url_extra)))],
+            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=miniapp_url(wallet_extra(user_id, test_url_extra))))],
             [
                 KeyboardButton(text="💳 Баланс"),
-                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url("screen=results"))),
+                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url(wallet_extra(user_id, "screen=results")))),
                 KeyboardButton(text="ℹ️ Как работает"),
             ],
         ],
@@ -278,9 +300,8 @@ def kb_topup() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="+500 ₽", callback_data="topup_50000"),
             InlineKeyboardButton(text="+1000 ₽", callback_data="topup_100000"),
         ],
-        [InlineKeyboardButton(text="🧭 Экспресс — бесплатно", callback_data="hint_free")],
-        [InlineKeyboardButton(text="Купить Стандарт — 300 ₽", callback_data="pay_yovayshi")],
-        [InlineKeyboardButton(text="Купить Полный — 500 ₽", callback_data="pay_onett")],
+        [InlineKeyboardButton(text="Ввести другую сумму", callback_data="topup_custom")],
+        [InlineKeyboardButton(text="Открыть тесты", callback_data="hint_free")],
         [InlineKeyboardButton(text="← Назад", callback_data="back_main")],
     ])
 
@@ -303,7 +324,7 @@ async def cmd_start(message: Message):
         "15 минут — и ты получишь честный разбор интересов, способностей и профессий.\n\n"
         "Нажми кнопку внизу чтобы начать 👇",
         parse_mode="HTML",
-        reply_markup=kb_main()
+        reply_markup=kb_main(user_id=message.from_user.id)
     )
 
 
@@ -315,10 +336,10 @@ async def handle_web_app_data(message: Message):
         return
     action = data.get("action")
 
-    if action == "request_invoice":
+    if action in {"request_purchase", "request_invoice"}:
         test_id = data.get("test_id")
         consent = data.get("consent") or {}
-        logger.info("Invoice requested: test_id=%s consent_version=%s consent_at=%s",
+        logger.info("Purchase requested: test_id=%s consent_version=%s consent_at=%s",
                     test_id, consent.get("version"), consent.get("accepted_at"))
         if test_id:
             paid_from_balance = await open_paid_test_from_balance(message, test_id)
@@ -366,7 +387,7 @@ async def handle_web_app_data(message: Message):
 async def cmd_menu(message: Message):
     await message.answer(
         "Меню открыто. Если кнопки пропали, используй /menu или /balance.",
-        reply_markup=kb_main(),
+        reply_markup=kb_main(user_id=message.from_user.id),
     )
 
 
@@ -374,7 +395,7 @@ async def cmd_menu(message: Message):
 async def cmd_reset(message: Message):
     await message.answer(
         "Готово. Открой кнопку «🧭 Пройти тест» ниже — мини-апп очистит локальную карту, историю и согласие на этом устройстве.",
-        reply_markup=kb_main("reset=1"),
+        reply_markup=kb_main("reset=1", message.from_user.id),
     )
 
 
@@ -396,13 +417,20 @@ async def cmd_topup(message: Message):
     if len(parts) < 2:
         await message.answer("Напиши сумму пополнения так: /topup 750")
         return
-    raw = parts[1].strip().replace(",", ".")
-    try:
-        amount_rub = float(raw)
-    except ValueError:
+    amount = parse_money_input(parts[1])
+    if amount is None:
         await message.answer("Не понял сумму. Пример: /topup 750")
         return
-    amount = int(round(amount_rub * 100))
+    await send_topup_invoice(message.chat.id, amount)
+
+
+@dp.message(lambda message: message.from_user and message.from_user.id in AWAITING_TOPUP_USERS)
+async def handle_custom_topup_amount(message: Message):
+    amount = parse_money_input(message.text or "")
+    if amount is None:
+        await message.answer("Напиши только сумму числом, например: 750")
+        return
+    AWAITING_TOPUP_USERS.discard(message.from_user.id)
     await send_topup_invoice(message.chat.id, amount)
 
 
@@ -418,7 +446,7 @@ async def cmd_privacy(message: Message):
         "Документы по персональным данным:\n\n"
         f"Согласие: {base_url}/consent.html\n"
         f"Политика: {base_url}/privacy.html",
-        reply_markup=kb_main(),
+        reply_markup=kb_main(user_id=message.from_user.id),
     )
 
 
@@ -451,8 +479,7 @@ async def send_balance_menu(message: Message):
     await message.answer(
         "💳 <b>Личный кабинет</b>\n\n"
         f"Баланс: <b>{format_money(balance)}</b>\n\n"
-        "Пополняй счет через ЮKassa и покупай тесты с баланса.\n"
-        "Для другой суммы напиши, например: /topup 750",
+        "Пополняй счет через ЮKassa. Тест выбирается в мини-аппе, а стоимость списывается с баланса при старте.",
         parse_mode="HTML",
         reply_markup=kb_topup()
     )
@@ -465,7 +492,11 @@ async def handle_balance(message: Message):
 
 @dp.callback_query(F.data == "hint_free")
 async def cb_hint_free(call: CallbackQuery):
-    await call.answer("Открой мини-апп кнопкой «🧭 Пройти тест» внизу чата — Экспресс уже бесплатный", show_alert=True)
+    await call.message.answer(
+        "Открой мини-апп кнопкой «🧭 Пройти тест» внизу чата и выбери нужный тест.",
+        reply_markup=kb_main(user_id=call.from_user.id),
+    )
+    await call.answer()
 
 
 @dp.callback_query(F.data == "back_main")
@@ -474,41 +505,26 @@ async def cb_back_main(call: CallbackQuery):
         await call.message.delete()
     except Exception:
         logger.exception("Failed to delete balance menu message")
-    await call.message.answer("Вернул основное меню.", reply_markup=kb_main())
+    await call.message.answer("Вернул основное меню.", reply_markup=kb_main(user_id=call.from_user.id))
     await call.answer()
 
 
 @dp.callback_query(F.data.startswith("pay_"))
 async def cb_pay(call: CallbackQuery):
-    test_id = call.data.split("_", 1)[1]
-    info = TEST_INVOICES.get(test_id)
-    if info:
-        rest = debit_balance(call.from_user.id, info["amount"])
-        if rest is not None:
-            try:
-                await call.message.delete()
-            except Exception:
-                logger.exception("Failed to delete balance menu after account payment")
-            await call.message.answer(
-                f"Списал {format_money(info['amount'])} со счета.\n"
-                f"Баланс: <b>{format_money(rest)}</b>.\n\n"
-                "Жми «🧭 Пройти тест» — платная версия откроется сразу.",
-                parse_mode="HTML",
-                reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
-            )
-            await call.answer()
-            return
-        balance = balance_of(call.from_user.id)
-        await call.answer(
-            f"На балансе {format_money(balance)}. Нужно {format_money(info['amount'])}. Пополни счет.",
-            show_alert=True,
-        )
-        return
-    await call.answer("Тест не найден", show_alert=True)
+    await call.message.answer(
+        "Теперь тесты выбираются в мини-аппе, а списание происходит при старте.",
+        reply_markup=kb_main(user_id=call.from_user.id),
+    )
+    await call.answer()
 
 
 @dp.callback_query(F.data.startswith("topup_"))
 async def cb_topup(call: CallbackQuery):
+    if call.data == "topup_custom":
+        AWAITING_TOPUP_USERS.add(call.from_user.id)
+        await call.message.answer("Напиши сумму пополнения одним числом, например: 750")
+        await call.answer()
+        return
     try:
         amount = int(call.data.split("_", 1)[1])
     except (IndexError, ValueError):
@@ -545,14 +561,14 @@ async def payment_success(message: Message):
             f"На счете: <b>{format_money(balance)}</b>.\n"
             "Теперь выбери тест в личном кабинете.",
             parse_mode="HTML",
-            reply_markup=kb_main(),
+            reply_markup=kb_main(user_id=message.from_user.id),
         )
         return
 
     test_id = payload.replace("test_", "", 1)
     await message.answer(
         "✅ Оплата прошла! Жми «🧭 Пройти тест» внизу — тест откроется сразу.",
-        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
+        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1", message.from_user.id),
     )
 
 
