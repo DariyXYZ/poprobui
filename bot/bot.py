@@ -78,6 +78,7 @@ TEST_INVOICES = {
         "amount": 50000,  # 500 ₽
     },
 }
+TOPUP_AMOUNTS = [30000, 50000, 100000]
 
 
 def format_money(amount: int) -> str:
@@ -203,6 +204,53 @@ async def send_test_invoice(chat_id: int, test_id: str):
         )
 
 
+async def send_topup_invoice(chat_id: int, amount: int):
+    if amount < 10000 or amount > 1500000:
+        await bot.send_message(chat_id, "Сумма пополнения: от 100 ₽ до 15 000 ₽.")
+        return
+    if not YOOKASSA_PROVIDER_TOKEN:
+        await bot.send_message(chat_id, "Платежи скоро будут подключены!")
+        return
+
+    receipt = {
+        "receipt": {
+            "items": [{
+                "description": "Пополнение баланса Попробуй",
+                "quantity": "1.00",
+                "amount": {
+                    "value": f"{amount / 100:.2f}",
+                    "currency": "RUB",
+                },
+                "vat_code": 1,
+                "payment_mode": "advance",
+                "payment_subject": "payment",
+            }]
+        }
+    }
+    try:
+        await bot.send_invoice(
+            chat_id=chat_id,
+            title="Пополнение баланса",
+            description=f"Баланс Попробуй: {format_money(amount)}",
+            payload=f"topup_{amount}",
+            provider_token=YOOKASSA_PROVIDER_TOKEN,
+            currency="RUB",
+            prices=[LabeledPrice(label="Пополнение баланса", amount=amount)],
+            start_parameter=f"topup_{amount}",
+            need_email=True,
+            send_email_to_provider=True,
+            provider_data=json.dumps(receipt),
+        )
+    except Exception as e:
+        logger.exception("Failed to send topup invoice for amount=%s", amount)
+        await bot.send_message(
+            chat_id,
+            "⚠️ Не удалось создать счёт ЮKassa.\n\n"
+            f"<code>{type(e).__name__}: {e}</code>",
+            parse_mode="HTML",
+        )
+
+
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
 def kb_main(test_url_extra: str = "") -> ReplyKeyboardMarkup:
@@ -224,14 +272,15 @@ def kb_main(test_url_extra: str = "") -> ReplyKeyboardMarkup:
 
 
 def kb_topup() -> InlineKeyboardMarkup:
-    # Note: no web_app button here for the free tier on purpose — sendData()
-    # (used for both PDF delivery and paid-tier invoice requests) only works
-    # when the Mini App was opened via the ReplyKeyboardMarkup button, not an
-    # inline one. Keep every entry into the test flow going through kb_main().
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🧭 Экспресс — бесплатно, кнопкой «Пройти тест»", callback_data="hint_free")],
-        [InlineKeyboardButton(text="300 ₽ — Стандарт (Склонности · 12 мин)", callback_data="pay_yovayshi")],
-        [InlineKeyboardButton(text="500 ₽ — Полный (RIASEC · 20 мин)", callback_data="pay_onett")],
+        [
+            InlineKeyboardButton(text="+300 ₽", callback_data="topup_30000"),
+            InlineKeyboardButton(text="+500 ₽", callback_data="topup_50000"),
+            InlineKeyboardButton(text="+1000 ₽", callback_data="topup_100000"),
+        ],
+        [InlineKeyboardButton(text="🧭 Экспресс — бесплатно", callback_data="hint_free")],
+        [InlineKeyboardButton(text="Купить Стандарт — 300 ₽", callback_data="pay_yovayshi")],
+        [InlineKeyboardButton(text="Купить Полный — 500 ₽", callback_data="pay_onett")],
         [InlineKeyboardButton(text="← Назад", callback_data="back_main")],
     ])
 
@@ -274,7 +323,15 @@ async def handle_web_app_data(message: Message):
         if test_id:
             paid_from_balance = await open_paid_test_from_balance(message, test_id)
             if not paid_from_balance:
-                await send_test_invoice(message.chat.id, test_id)
+                info = TEST_INVOICES.get(test_id)
+                balance = balance_of(message.from_user.id)
+                need = info["amount"] if info else 0
+                await message.answer(
+                    f"На балансе {format_money(balance)}. "
+                    f"Для этого теста нужно {format_money(need)}.\n\n"
+                    "Пополни счет и нажми тест еще раз.",
+                    reply_markup=kb_topup(),
+                )
         return
 
     if action != "generate_pdf":
@@ -333,6 +390,22 @@ async def cmd_gift(message: Message):
     )
 
 
+@dp.message(Command("topup"))
+async def cmd_topup(message: Message):
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Напиши сумму пополнения так: /topup 750")
+        return
+    raw = parts[1].strip().replace(",", ".")
+    try:
+        amount_rub = float(raw)
+    except ValueError:
+        await message.answer("Не понял сумму. Пример: /topup 750")
+        return
+    amount = int(round(amount_rub * 100))
+    await send_topup_invoice(message.chat.id, amount)
+
+
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     await send_how_it_works(message)
@@ -378,8 +451,8 @@ async def send_balance_menu(message: Message):
     await message.answer(
         "💳 <b>Личный кабинет</b>\n\n"
         f"Баланс: <b>{format_money(balance)}</b>\n\n"
-        "Выбери тест. Если на счете хватает денег, стоимость спишется с баланса. "
-        "Если нет — откроется оплата ЮKassa.",
+        "Пополняй счет через ЮKassa и покупай тесты с баланса.\n"
+        "Для другой суммы напиши, например: /topup 750",
         parse_mode="HTML",
         reply_markup=kb_topup()
     )
@@ -425,10 +498,23 @@ async def cb_pay(call: CallbackQuery):
             )
             await call.answer()
             return
-    if not YOOKASSA_PROVIDER_TOKEN:
-        await call.answer("Платежи скоро будут подключены!", show_alert=True)
+        balance = balance_of(call.from_user.id)
+        await call.answer(
+            f"На балансе {format_money(balance)}. Нужно {format_money(info['amount'])}. Пополни счет.",
+            show_alert=True,
+        )
         return
-    await send_test_invoice(call.from_user.id, test_id)
+    await call.answer("Тест не найден", show_alert=True)
+
+
+@dp.callback_query(F.data.startswith("topup_"))
+async def cb_topup(call: CallbackQuery):
+    try:
+        amount = int(call.data.split("_", 1)[1])
+    except (IndexError, ValueError):
+        await call.answer("Не понял сумму", show_alert=True)
+        return
+    await send_topup_invoice(call.from_user.id, amount)
     await call.answer()
 
 
@@ -442,13 +528,28 @@ async def pre_checkout(query: PreCheckoutQuery):
 @dp.message(F.successful_payment)
 async def payment_success(message: Message):
     payload = message.successful_payment.invoice_payload
-    test_id = payload.replace("test_", "", 1)
     logger.info("Successful payment: payload=%s currency=%s total=%s provider_charge_id=%s telegram_charge_id=%s",
                 payload,
                 message.successful_payment.currency,
                 message.successful_payment.total_amount,
                 message.successful_payment.provider_payment_charge_id,
                 message.successful_payment.telegram_payment_charge_id)
+    if payload.startswith("topup_"):
+        try:
+            amount = int(payload.split("_", 1)[1])
+        except (IndexError, ValueError):
+            amount = message.successful_payment.total_amount
+        balance = add_balance(message.from_user.id, amount)
+        await message.answer(
+            "✅ Баланс пополнен.\n\n"
+            f"На счете: <b>{format_money(balance)}</b>.\n"
+            "Теперь выбери тест в личном кабинете.",
+            parse_mode="HTML",
+            reply_markup=kb_main(),
+        )
+        return
+
+    test_id = payload.replace("test_", "", 1)
     await message.answer(
         "✅ Оплата прошла! Жми «🧭 Пройти тест» внизу — тест откроется сразу.",
         reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1"),
