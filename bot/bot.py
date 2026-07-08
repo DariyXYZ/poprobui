@@ -25,6 +25,16 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MINIAPP_URL = os.getenv("MINIAPP_URL", "https://poprobui.railway.app")
 YOOKASSA_PROVIDER_TOKEN = os.getenv("YOOKASSA_PROVIDER_TOKEN", "")
+DEMO_USERNAMES = {
+    u.strip().lower().lstrip("@")
+    for u in os.getenv("DEMO_USERNAMES", "dariy_nazarov").split(",")
+    if u.strip()
+}
+DEMO_USER_IDS = {
+    int(u.strip())
+    for u in os.getenv("DEMO_USER_IDS", "").split(",")
+    if u.strip().isdigit()
+}
 
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
@@ -152,6 +162,26 @@ def kb_topup() -> InlineKeyboardMarkup:
     ])
 
 
+def kb_demo_paid() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(
+                text="🧪 Стандарт — dev-доступ",
+                web_app=WebAppInfo(url=miniapp_url("screen=test&tier=yovayshi&paid=1&demo=1")),
+            )],
+            [KeyboardButton(
+                text="🧪 Полный — dev-доступ",
+                web_app=WebAppInfo(url=miniapp_url("screen=test&tier=onett&paid=1&demo=1")),
+            )],
+            [
+                KeyboardButton(text="💳 Баланс"),
+                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url("screen=results"))),
+            ],
+        ],
+        resize_keyboard=True,
+    )
+
+
 def kb_back() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="← Назад", callback_data="back_main")]
@@ -232,6 +262,26 @@ async def cmd_reset(message: Message):
     await message.answer(
         "Готово. Открой кнопку «🧭 Пройти тест» ниже — мини-апп очистит локальную карту, историю и согласие на этом устройстве.",
         reply_markup=kb_main("reset=1"),
+    )
+
+
+def has_demo_access(message: Message) -> bool:
+    username = (message.from_user.username or "").lower()
+    return message.from_user.id in DEMO_USER_IDS or username in DEMO_USERNAMES
+
+
+@dp.message(Command("demo_paid", "gift"))
+async def cmd_demo_paid(message: Message):
+    if not has_demo_access(message):
+        await message.answer(
+            "Тестовый dev-доступ доступен только владельцу проекта. Для оплаты используй /balance.",
+            reply_markup=kb_main(),
+        )
+        return
+    await message.answer(
+        "Начислил тестовый dev-баланс 1000 ₽.\n\n"
+        "Это не реальный платеж и не чек ЮKassa — просто доступ для проверки платного прохождения.",
+        reply_markup=kb_demo_paid(),
     )
 
 
