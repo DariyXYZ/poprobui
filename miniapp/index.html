@@ -914,13 +914,22 @@ function updateWalletBadge() {
 async function refreshWalletBalance() {
   if (!TG_USER_ID) return;
   try {
-    const res = await fetch(`${API_URL}/wallet/${TG_USER_ID}`);
+    const res = await fetchWithTimeout(`${API_URL}/wallet/${TG_USER_ID}`, {}, 2500);
     if (!res.ok) return;
     const data = await res.json();
     walletBalanceCents = Number(data.balance || 0);
     updateWalletBadge();
   } catch (e) {
     console.warn("wallet refresh failed", e);
+  }
+}
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -1217,7 +1226,7 @@ async function submitAnswers() {
   document.getElementById("btn-next").innerHTML = cta("Далее", "", "", "arrowRight");
 
   try {
-    const res = await fetch(`${API_URL}/submit`, {
+    const res = await fetchWithTimeout(`${API_URL}/submit`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
@@ -1225,7 +1234,7 @@ async function submitAnswers() {
         test_id: selectedTest,
         answers: answers,
       })
-    });
+    }, 4500);
     const data = await res.json();
     resultId = data.result_id;
     handleTestComplete(data);
@@ -2024,11 +2033,11 @@ async function requestPurchase(testId) {
     btn.innerHTML = cta("Списываем баланс", "Пару секунд", "wallet");
   }
   try {
-    const res = await fetch(`${API_URL}/wallet/debit`, {
+    const res = await fetchWithTimeout(`${API_URL}/wallet/debit`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ tg_user_id: TG_USER_ID, test_id: testId, amount: price })
-    });
+    }, 3500);
     if (!res.ok) throw new Error(`wallet debit failed: ${res.status}`);
     const data = await res.json();
     if (data.ok) {
@@ -2038,23 +2047,33 @@ async function requestPurchase(testId) {
       startTest();
       return;
     }
-    tg.sendData(JSON.stringify({ action: "request_purchase", test_id: testId, price, consent: currentConsent() }));
-    tg.close();
+    requestTopupInChat(testId, price);
   } catch (e) {
-    console.error("sendData failed:", e);
-    try {
-      tg.sendData(JSON.stringify({ action: "request_purchase", test_id: testId, price, consent: currentConsent() }));
-      tg.close();
-    } catch (sendErr) {
-      console.error("sendData failed:", sendErr);
-      tg.showAlert("Вернись в чат с ботом и нажми «Баланс», чтобы пополнить счет");
+    console.warn("wallet debit API failed, using session balance when possible", e);
+    if (walletBalanceCents >= price) {
+      walletBalanceCents -= price;
+      updateWalletBadge();
+      selectedTest = testId;
+      startTest();
+      return;
     }
+    requestTopupInChat(testId, price);
   } finally {
     if (btn && document.getElementById("screen-test") && !document.getElementById("screen-test").classList.contains("active")) {
       btn.disabled = false;
       const meta = TEST_META[testId];
       btn.innerHTML = cta("Списать с баланса", meta.price, meta.icon);
     }
+  }
+}
+
+function requestTopupInChat(testId, price) {
+  try {
+    tg.sendData(JSON.stringify({ action: "request_purchase", test_id: testId, price, consent: currentConsent() }));
+    tg.close();
+  } catch (sendErr) {
+    console.error("sendData failed:", sendErr);
+    tg.showAlert("Вернись в чат с ботом и нажми «Баланс», чтобы пополнить счет");
   }
 }
 
