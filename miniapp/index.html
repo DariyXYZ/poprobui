@@ -1565,9 +1565,28 @@ const HUB_GROUP_LABEL = {
   research: "Исследовательское", nature: "Природа", extreme: "Экстремал", business: "Предприниматель",
 };
 const HUB_GROUP_HUE = {
-  tech: 172, social: 168, art: 176, data: 182,
-  research: 318, nature: 166, extreme: 320, business: 38,
+  tech: 202, social: 156, art: 286, data: 224,
+  research: 334, nature: 132, extreme: 18, business: 38,
 };
+const HUB_GROUP_TONE = {
+  tech: { hue: 202, sat: 68, light: 48 },
+  social: { hue: 156, sat: 54, light: 45 },
+  art: { hue: 286, sat: 52, light: 54 },
+  data: { hue: 224, sat: 52, light: 48 },
+  research: { hue: 334, sat: 58, light: 52 },
+  nature: { hue: 132, sat: 48, light: 44 },
+  extreme: { hue: 18, sat: 70, light: 54 },
+  business: { hue: 38, sat: 72, light: 49 },
+};
+
+function toneForGroup(groupId, rank = 0) {
+  const base = HUB_GROUP_TONE[groupId] || { hue: 210, sat: 46, light: 50 };
+  return {
+    hue: (base.hue + hueJitter * 0.22 + 360) % 360,
+    sat: Math.max(38, base.sat - Math.min(rank, 5) * 2),
+    light: Math.max(38, Math.min(58, base.light + (rank === 0 ? 2 : 0) - Math.min(rank, 4) * 1.2)),
+  };
+}
 
 function aggregateProfile(tree) {
   const groups = new Map();
@@ -1621,7 +1640,7 @@ function buildTreeSchedule() {
       id: ROOT_ID, label: name,
       x: canvasW / 2, y: canvasH / 2,
       vx: 0, vy: 0, r: rootRadius(doneCount),
-      isRoot: true, hue: 250, sat: 65, light: 12,
+      isRoot: true, hue: 248, sat: 54, light: 58,
       mass: 18, fixedCore: true, bornAt: performance.now(),
     });
   });
@@ -1634,6 +1653,7 @@ function buildTreeSchedule() {
     schedule.push(() => {
       const root = treeNodeById.get(ROOT_ID);
       const r = planetRadius(planet.score, rank, planet.testIds.size);
+      const tone = toneForGroup(planet.id, rank);
       const p = {
         x: root.x + Math.cos(angle) * orbit,
         y: root.y + Math.sin(angle) * orbit,
@@ -1641,7 +1661,7 @@ function buildTreeSchedule() {
       addTreeNode({
         id, label: planet.label, x: p.x, y: p.y, vx: 0, vy: 0,
         r, isHub: true, isPrimary: rank < 3,
-        hue: (planet.hue + hueJitter + 360) % 360, sat: rank < 4 ? 66 : 62, light: rank < 4 ? 55 : 50,
+        hue: tone.hue, sat: tone.sat, light: tone.light,
         mass: 6 + r * 0.18, score: planet.score, rank,
         fromTests: planet.testIds, isConverged: planet.testIds.size >= 2,
         bornAt: performance.now(),
@@ -1659,13 +1679,14 @@ function buildTreeSchedule() {
       schedule.push(() => {
         const hub = treeNodeById.get(id);
         if (!hub) return;
+        const tone = toneForGroup(planet.id, rank);
         addTreeNode({
           id: profId, label: profName,
           x: hub.x + Math.cos(satAngle) * satOrbit,
           y: hub.y + Math.sin(satAngle) * satOrbit,
           vx: 0, vy: 0, r: leafRadius(weight > 1.6 ? 2 : 1),
           isLeaf: true, showLabel: rank < 3,
-          hue: (planet.hue + hueJitter + 360) % 360, sat: 58, light: 45,
+          hue: tone.hue, sat: Math.max(34, tone.sat - 10), light: Math.max(34, tone.light - 8),
           mass: 1.1, bornAt: performance.now(),
         });
         treeEdges.push({ a: id, b: profId, kind: "leaf", converged: rank < 3 });
@@ -1792,8 +1813,8 @@ function treeDraw() {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
     ctxEl.strokeStyle = e.converged
-      ? "rgba(240,180,60,.55)"
-      : (dark ? "rgba(255,255,255,.12)" : "rgba(20,15,40,.14)");
+      ? (dark ? "rgba(178,168,255,.42)" : "rgba(94,82,168,.28)")
+      : (dark ? "rgba(255,255,255,.13)" : "rgba(43,50,72,.13)");
     ctxEl.lineWidth = (e.kind === "planet" ? 1.5 + (e.strength || 0) * 1.4 : e.converged ? 1.4 : 0.9) / camScale;
     ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
   }
@@ -1802,25 +1823,40 @@ function treeDraw() {
     const isHovered = p === hoveredNode;
     ctxEl.globalAlpha = ease;
     ctxEl.beginPath();
-    ctxEl.shadowBlur = (p.isRoot ? 28 : p.isConverged ? 16 : p.isHub ? 13 : 5) + (isHovered ? 10 : 0);
-    ctxEl.shadowColor = p.isConverged ? "rgba(240,180,60,.65)" : `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .7)`;
-    ctxEl.fillStyle = p.isRoot ? (dark ? "#EDEAFB" : "#16132A") : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
+    ctxEl.shadowBlur = (p.isRoot ? 18 : p.isConverged ? 13 : p.isHub ? 12 : 5) + (isHovered ? 8 : 0);
+    ctxEl.shadowColor = p.isRoot
+      ? (dark ? "rgba(177,168,255,.42)" : "rgba(91,84,238,.22)")
+      : `hsla(${p.hue}, ${Math.max(32, p.sat - 6)}%, ${Math.min(64, p.light + 6)}%, .48)`;
+    ctxEl.fillStyle = p.isRoot
+      ? (dark ? "#F4F1FF" : "#F7F2E8")
+      : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     ctxEl.arc(p.x, p.y, p.r * ease, 0, Math.PI * 2);
     ctxEl.fill();
     if (p.isConverged) {
       ctxEl.shadowBlur = 0;
-      ctxEl.lineWidth = Math.max(2.2, p.r * 0.13) / camScale;
-      ctxEl.strokeStyle = "rgba(245,185,65,.92)";
+      ctxEl.lineWidth = Math.max(1.8, p.r * 0.09) / camScale;
+      ctxEl.strokeStyle = dark ? "rgba(245,242,255,.78)" : "rgba(255,255,255,.82)";
       ctxEl.stroke();
       ctxEl.beginPath();
-      ctxEl.lineWidth = 1.1 / camScale;
-      ctxEl.strokeStyle = "rgba(255,255,255,.62)";
-      ctxEl.arc(p.x, p.y, Math.max(1, p.r * ease - 3 / camScale), 0, Math.PI * 2);
+      ctxEl.lineWidth = 1 / camScale;
+      ctxEl.strokeStyle = dark ? "rgba(178,168,255,.42)" : "rgba(68,58,130,.22)";
+      ctxEl.arc(p.x, p.y, Math.max(1, p.r * ease + 4 / camScale), 0, Math.PI * 2);
+      ctxEl.stroke();
+    }
+    if (p.isRoot) {
+      ctxEl.shadowBlur = 0;
+      ctxEl.lineWidth = 1.6 / camScale;
+      ctxEl.strokeStyle = dark ? "rgba(177,168,255,.72)" : "rgba(91,84,238,.34)";
+      ctxEl.stroke();
+      ctxEl.beginPath();
+      ctxEl.lineWidth = 1 / camScale;
+      ctxEl.strokeStyle = dark ? "rgba(255,255,255,.7)" : "rgba(255,255,255,.92)";
+      ctxEl.arc(p.x, p.y, Math.max(1, p.r * ease - 5 / camScale), 0, Math.PI * 2);
       ctxEl.stroke();
     }
     if (isHovered) {
       ctxEl.lineWidth = 2 / camScale;
-      ctxEl.strokeStyle = dark ? "#fff" : "#16132A";
+      ctxEl.strokeStyle = dark ? "#fff" : "#4C45B8";
       ctxEl.stroke();
     }
     ctxEl.shadowBlur = 0;
@@ -1833,9 +1869,13 @@ function treeDraw() {
     ctxEl.globalAlpha = ease;
     const labelSize = p.isRoot ? 14 : p.isHub ? Math.max(11, Math.min(16, p.r * 0.48)) : 9.5;
     ctxEl.font = `${p.isLeaf ? 650 : 700} ${labelSize}px Outfit, system-ui, sans-serif`;
-    ctxEl.fillStyle = p.isLeaf
-      ? (dark ? "rgba(237,234,251,.72)" : "rgba(22,19,42,.62)")
-      : p.isConverged ? (dark ? "hsl(42, 95%, 68%)" : "hsl(36, 90%, 38%)") : (dark ? "rgba(237,234,251,.92)" : "rgba(22,19,42,.92)");
+    ctxEl.fillStyle = p.isRoot
+      ? (dark ? "rgba(33,30,58,.96)" : "rgba(42,37,78,.96)")
+      : p.isLeaf
+        ? (dark ? "rgba(237,234,251,.72)" : "rgba(43,50,72,.62)")
+        : p.isConverged
+          ? (dark ? "rgba(230,226,255,.96)" : "rgba(54,48,108,.94)")
+          : (dark ? "rgba(237,234,251,.92)" : "rgba(43,50,72,.92)");
     ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
     ctxEl.globalAlpha = 1;
   }
