@@ -17,6 +17,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.fsm.storage.memory import MemoryStorage
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api'))
+from wallet import add_balance, balance_of, debit_balance, format_money
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,15 +37,10 @@ GIFT_USER_IDS = {
     for u in os.getenv("GIFT_USER_IDS", "").split(",")
     if u.strip().isdigit()
 }
-BALANCE_DB_PATH = os.getenv(
-    "BALANCE_DB_PATH",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "balances.json"),
-)
-
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "19"
+MINIAPP_VERSION = "20"
 
 
 def miniapp_url(extra: str = "") -> str:
@@ -92,12 +88,6 @@ TEST_INVOICES = {
 TOPUP_AMOUNTS = [30000, 50000, 100000]
 
 
-def format_money(amount: int) -> str:
-    rub = amount // 100
-    kop = amount % 100
-    return f"{rub} ₽" if kop == 0 else f"{rub},{kop:02d} ₽"
-
-
 def parse_money_input(text: str) -> int | None:
     cleaned = (text or "").lower().replace(",", ".")
     cleaned = re.sub(r"[^0-9.]", "", cleaned)
@@ -107,48 +97,6 @@ def parse_money_input(text: str) -> int | None:
         return int(round(float(cleaned) * 100))
     except ValueError:
         return None
-
-
-def load_balances() -> dict:
-    try:
-        with open(BALANCE_DB_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        logger.exception("Failed to load balances from %s", BALANCE_DB_PATH)
-        return {}
-
-
-def save_balances(data: dict) -> None:
-    os.makedirs(os.path.dirname(BALANCE_DB_PATH), exist_ok=True)
-    tmp_path = BALANCE_DB_PATH + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp_path, BALANCE_DB_PATH)
-
-
-def balance_of(user_id: int) -> int:
-    return int(load_balances().get(str(user_id), 0))
-
-
-def add_balance(user_id: int, amount: int) -> int:
-    data = load_balances()
-    key = str(user_id)
-    data[key] = int(data.get(key, 0)) + amount
-    save_balances(data)
-    return data[key]
-
-
-def debit_balance(user_id: int, amount: int) -> int | None:
-    data = load_balances()
-    key = str(user_id)
-    current = int(data.get(key, 0))
-    if current < amount:
-        return None
-    data[key] = current - amount
-    save_balances(data)
-    return data[key]
 
 
 def has_gift_access(message: Message) -> bool:

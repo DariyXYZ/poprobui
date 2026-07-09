@@ -9,6 +9,7 @@ import json
 
 from pdf import generate_pdf
 from scoring import score_test
+from wallet import balance_of, debit_balance
 
 app = FastAPI(title="Попробуй API")
 
@@ -61,11 +62,43 @@ class ResultResponse(BaseModel):
     recommendations: list
 
 
+class WalletDebitRequest(BaseModel):
+    tg_user_id: int
+    test_id: str
+    amount: int
+
+
+class WalletDebitResponse(BaseModel):
+    ok: bool
+    balance: int
+    required: int
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/wallet/{tg_user_id}")
+async def get_wallet(tg_user_id: int):
+    return {"balance": balance_of(tg_user_id)}
+
+
+@app.post("/wallet/debit", response_model=WalletDebitResponse)
+async def debit_wallet(payload: WalletDebitRequest):
+    expected_prices = {"yovayshi": 30000, "onett": 50000}
+    required = expected_prices.get(payload.test_id)
+    if required is None:
+        raise HTTPException(status_code=400, detail="Unknown paid test")
+    if payload.amount != required:
+        raise HTTPException(status_code=400, detail="Invalid amount")
+
+    rest = debit_balance(payload.tg_user_id, required)
+    if rest is None:
+        return WalletDebitResponse(ok=False, balance=balance_of(payload.tg_user_id), required=required)
+    return WalletDebitResponse(ok=True, balance=rest, required=required)
 
 
 @app.post("/submit", response_model=ResultResponse)
