@@ -443,9 +443,26 @@
   .graph-screen { padding: 0; position: relative; overflow: hidden; }
   #tree-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   #tree-canvas.dragging { cursor: grabbing; }
+  .graph-logo {
+    /* wordmark centered on the same axis as the top nav icons (36px row) */
+    position: absolute;
+    top: 22px; left: 0; right: 0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 2;
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
   .graph-header {
     position: absolute; top: 0; left: 0; right: 0;
-    padding: 72px 20px 0;
+    padding: 84px 20px 0;
     text-align: center;
     pointer-events: none;
     z-index: 2;
@@ -750,8 +767,8 @@
 <div id="screen-intro" class="screen graph-screen active">
   <canvas id="tree-canvas"></canvas>
   <div class="graph-tooltip" id="graph-tooltip"></div>
+  <div class="graph-logo">Попробуй</div>
   <div class="graph-header">
-    <div class="intro-eyebrow">Попробуй</div>
     <div class="intro-title graph-title">Твоя карта интересов</div>
     <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
@@ -1131,9 +1148,11 @@ function resetLocalUserState() {
     pendingResultSheetTimer = null;
   }
   clearTreeRuntimeState();
-  rebuildTreeAnimated();
   updateGraphStatus();
   showScreen("screen-intro");
+  // fresh start = replay the first-visit teaser (also handy for testing it)
+  localStorage.setItem("poprobui_demo_seen", "1");
+  playIntroDemo();
 }
 function completedTests() {
   const tree = loadTree();
@@ -1611,9 +1630,12 @@ const HUB_GROUP_TONE = {
 // button. Kept under the ROOT_TONE name (hue/sat/light still present) so
 // existing checks and shadow/label code keep working.
 function makeRootTone() {
+  // three hues, each a random step further around the wheel — the root
+  // reads as a rich multi-color blob no single-hue planet can match
   const h1 = Math.random() * 360;
-  const h2 = (h1 + 42 + Math.random() * 48) % 360;
-  return { hue: h1, hue2: h2, sat: 90, light: 57 };
+  const h2 = (h1 + 38 + Math.random() * 42) % 360;
+  const h3 = (h2 + 38 + Math.random() * 42) % 360;
+  return { hue: h1, hue2: h2, hue3: h3, sat: 90, light: 57 };
 }
 let ROOT_TONE = makeRootTone();
 
@@ -1678,7 +1700,7 @@ function buildTreeSchedule() {
       id: ROOT_ID, label: name,
       x: canvasW / 2, y: canvasH / 2,
       vx: 0, vy: 0, r: rootRadius(doneCount),
-      isRoot: true, hue: ROOT_TONE.hue, hue2: ROOT_TONE.hue2, sat: ROOT_TONE.sat, light: ROOT_TONE.light,
+      isRoot: true, hue: ROOT_TONE.hue, hue2: ROOT_TONE.hue2, hue3: ROOT_TONE.hue3, sat: ROOT_TONE.sat, light: ROOT_TONE.light,
       mass: 18, fixedCore: true, bornAt: performance.now(),
     });
   });
@@ -1867,12 +1889,12 @@ function addFrostStops(grad, colorAt) {
     grad.addColorStop(FROST_PLATEAU + t * (1 - FROST_PLATEAU), colorAt(a));
   }
 }
-// Root's two-hue dot: a linear gradient masked by the same radial alpha
-// profile (destination-in) — one even blob, cached per color pair.
+// Root's triple-hue dot: a 3-stop linear gradient masked by the same
+// radial alpha profile (destination-in) — one even blob, cached per trio.
 const ROOT_SPRITE_SIZE = 256;
 const rootSpriteCache = new Map();
-function rootDotSprite(hue, hue2, sat, light) {
-  const key = [Math.round(hue), Math.round(hue2), Math.round(sat), Math.round(light)].join("|");
+function rootDotSprite(hue, hue2, hue3, sat, light) {
+  const key = [Math.round(hue), Math.round(hue2), Math.round(hue3), Math.round(sat), Math.round(light)].join("|");
   const hit = rootSpriteCache.get(key);
   if (hit) return hit;
   const S = ROOT_SPRITE_SIZE, half = S / 2;
@@ -1881,7 +1903,8 @@ function rootDotSprite(hue, hue2, sat, light) {
   const x = c.getContext("2d");
   const lin = x.createLinearGradient(0, 0, S, S);
   lin.addColorStop(0, `hsl(${hue}, ${sat}%, ${Math.min(66, light + 8)}%)`);
-  lin.addColorStop(1, `hsl(${hue2}, ${sat}%, ${Math.max(46, light - 6)}%)`);
+  lin.addColorStop(0.5, `hsl(${hue2}, ${sat}%, ${light}%)`);
+  lin.addColorStop(1, `hsl(${hue3}, ${sat}%, ${Math.max(46, light - 6)}%)`);
   x.fillStyle = lin;
   x.fillRect(0, 0, S, S);
   const mask = x.createRadialGradient(half, half, 0, half, half, half);
@@ -1930,7 +1953,8 @@ function treeDraw() {
   // centered over it at rest. The core peeks out down-right as a crisp
   // crescent; inside the lens the same color reads as a blurred stain.
   for (const p of treeNodes) {
-    const ease = Math.min(1, 1 - Math.pow(1 - Math.min((now - p.bornAt) / POP_MS, 1), 3));
+    let ease = Math.min(1, 1 - Math.pow(1 - Math.min((now - p.bornAt) / POP_MS, 1), 3));
+    if (p.dyingAt) ease = Math.min(ease, Math.max(0, 1 - (now - p.dyingAt) / POP_MS));
     if (ease <= 0.01) continue;
     const isHovered = p === hoveredNode;
     const g = p.r * ease;                       // lens radius
@@ -1959,7 +1983,8 @@ function treeDraw() {
     if (p.isRoot && p.hue2 != null) {
       const coreGrad = ctxEl.createLinearGradient(cx - dotR, cy - dotR, cx + dotR, cy + dotR);
       coreGrad.addColorStop(0, `hsl(${p.hue}, ${p.sat}%, ${Math.min(64, p.light + 6)}%)`);
-      coreGrad.addColorStop(1, `hsl(${p.hue2}, ${p.sat}%, ${Math.max(48, p.light - 4)}%)`);
+      coreGrad.addColorStop(0.5, `hsl(${p.hue2}, ${p.sat}%, ${p.light}%)`);
+      coreGrad.addColorStop(1, `hsl(${p.hue3 ?? p.hue2}, ${p.sat}%, ${Math.max(48, p.light - 4)}%)`);
       ctxEl.fillStyle = coreGrad;
     } else {
       ctxEl.fillStyle = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
@@ -1989,7 +2014,7 @@ function treeDraw() {
     ctxEl.globalAlpha = ease;
     const outerR = Math.max(1, dotR * FROST_SPREAD);
     if (p.isRoot && p.hue2 != null) {
-      const sprite = rootDotSprite(p.hue, p.hue2, p.sat, p.light);
+      const sprite = rootDotSprite(p.hue, p.hue2, p.hue3 ?? p.hue2, p.sat, p.light);
       const sc = outerR / (ROOT_SPRITE_SIZE / 2);
       ctxEl.drawImage(sprite, cx - outerR, cy - outerR, ROOT_SPRITE_SIZE * sc, ROOT_SPRITE_SIZE * sc);
     } else {
@@ -2007,7 +2032,9 @@ function treeDraw() {
   ctxEl.textAlign = "center";
   for (const p of treeNodes) {
     if (!p.isHub && !p.isRoot && !p.isConverged && !p.showLabel) continue;
-    const ease = Math.min(1, (now - p.bornAt) / POP_MS);
+    let ease = Math.min(1, (now - p.bornAt) / POP_MS);
+    if (p.dyingAt) ease = Math.min(ease, Math.max(0, 1 - (now - p.dyingAt) / POP_MS));
+    if (ease <= 0.01) continue;
     ctxEl.globalAlpha = ease;
     const labelSize = p.isRoot ? 14 : p.isHub ? Math.max(11, Math.min(16, p.r * 0.48)) : 9.5;
     ctxEl.font = `${p.isLeaf ? 650 : 700} ${labelSize}px Outfit, system-ui, sans-serif`;
@@ -2100,6 +2127,85 @@ function randomizeLook() {
   ROOT_TONE = makeRootTone();
   treePhysics = graphPhysics();
   rebuildTreeAnimated();
+}
+
+// First-visit teaser: grow a big, rich fake map (all 8 groups + random
+// professions), hold it, then collapse it node-by-node IN THE SAME ORDER
+// it grew — everything folds back until only «Ты» remains. Shows the new
+// user what the finished map will look like before they start.
+function playIntroDemo() {
+  clearTreeRuntimeState();
+  hasShownTreeOnce = true;
+  const statusEl = document.getElementById("graph-status");
+  if (statusEl) statusEl.textContent = "Так выглядит готовая карта";
+  const schedule = [];
+  const name = tg?.initDataUnsafe?.user?.first_name || "Ты";
+  schedule.push(() => {
+    addTreeNode({
+      id: ROOT_ID, label: name, x: canvasW / 2, y: canvasH / 2,
+      vx: 0, vy: 0, r: rootRadius(3),
+      isRoot: true, hue: ROOT_TONE.hue, hue2: ROOT_TONE.hue2, hue3: ROOT_TONE.hue3,
+      sat: ROOT_TONE.sat, light: ROOT_TONE.light, mass: 18, bornAt: performance.now(),
+    });
+  });
+  const groupIds = Object.keys(HUB_GROUP_LABEL).sort(() => Math.random() - 0.5);
+  const count = groupIds.length;
+  groupIds.forEach((gid, rank) => {
+    const hubId = "demo::hub::" + gid;
+    const angle = -Math.PI / 2 + rank * (Math.PI * 2 / count) + (Math.random() - 0.5) * 0.3;
+    const orbit = 112 + Math.random() * 28;
+    const tone = HUB_GROUP_TONE[gid] || { hue: 210, sat: 70, light: 50 };
+    const r = 13 + Math.random() * 15;
+    schedule.push(() => {
+      const root = treeNodeById.get(ROOT_ID);
+      if (!root) return;
+      addTreeNode({
+        id: hubId, label: HUB_GROUP_LABEL[gid],
+        x: root.x + Math.cos(angle) * orbit, y: root.y + Math.sin(angle) * orbit,
+        vx: 0, vy: 0, r, isHub: true,
+        hue: tone.hue, sat: tone.sat, light: tone.light,
+        mass: 6 + r * 0.18, bornAt: performance.now(),
+      });
+      treeEdges.push({ a: ROOT_ID, b: hubId, kind: "planet", strength: 0.5 });
+    });
+    const labels = Object.keys(HUB_GROUP_OF).filter(l => HUB_GROUP_OF[l] === gid);
+    const pool = [...new Set(labels.flatMap(l => (PROF_RICH[l] || {}).profs || []))].sort(() => Math.random() - 0.5);
+    pool.slice(0, 3 + Math.floor(Math.random() * 2)).forEach((prof, i, arr) => {
+      const profId = "demo::prof::" + gid + "::" + prof;
+      const satAngle = angle + (i - (arr.length - 1) / 2) * 0.5;
+      schedule.push(() => {
+        const hub = treeNodeById.get(hubId);
+        if (!hub) return;
+        addTreeNode({
+          id: profId, label: prof,
+          x: hub.x + Math.cos(satAngle) * 52, y: hub.y + Math.sin(satAngle) * 52,
+          vx: 0, vy: 0, r: 4 + Math.random() * 2.5,
+          isLeaf: true, showLabel: true,
+          hue: tone.hue, sat: Math.max(46, tone.sat - 14), light: Math.max(34, tone.light - 8),
+          mass: 1.1, bornAt: performance.now(),
+        });
+        treeEdges.push({ a: hubId, b: profId, kind: "leaf" });
+      });
+    });
+  });
+  runSchedule(schedule, 60);
+  const growMs = schedule.length * 60;
+  // hold the full map, then fold it back in the same order it appeared
+  const holdTimer = setTimeout(() => {
+    const order = treeNodes.filter(n => !n.isRoot);
+    order.forEach((n, i) => {
+      const t = setTimeout(() => { n.dyingAt = performance.now(); }, i * 45);
+      treeScheduleTimers.push(t);
+    });
+    const doneTimer = setTimeout(() => {
+      treeNodes = treeNodes.filter(n => n.isRoot);
+      treeNodeById = new Map(treeNodes.map(n => [n.id, n]));
+      treeEdges = [];
+      updateGraphStatus();
+    }, order.length * 45 + POP_MS + 150);
+    treeScheduleTimers.push(doneTimer);
+  }, growMs + 1500);
+  treeScheduleTimers.push(holdTimer);
 }
 
 // ── Graph screen state (CTA + status pill) ──────────────────────────────
@@ -2428,6 +2534,11 @@ initTreeCanvas();
     const tier = p.get("tier");
     if (tier && TESTS[tier]) selectedTest = tier;
     startTest();
+  } else if (!completedTests().length && !localStorage.getItem("poprobui_demo_seen")) {
+    // first visit: tease the finished map, then collapse to just «Ты»
+    localStorage.setItem("poprobui_demo_seen", "1");
+    updateGraphStatus();
+    playIntroDemo();
   } else {
     renderGraphScreen();
   }
