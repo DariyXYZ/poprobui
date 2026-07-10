@@ -1509,10 +1509,19 @@ function initTreeCanvas() {
   window.addEventListener("resize", resizeTreeCanvas);
   wireTreeInteraction();
 }
+let pendingCanvasResize = false;
 function resizeTreeCanvas() {
+  const w = canvasEl.parentElement.clientWidth;
+  const h = canvasEl.parentElement.clientHeight;
+  // Resize events fire while the graph screen is hidden (e.g. Telegram's
+  // viewport changes during the question flow) — a hidden parent measures
+  // 0×0, which would blank the canvas until reload. Defer; treeLoop
+  // re-syncs the size as soon as the screen is visible again.
+  if (!w || !h) { pendingCanvasResize = true; return; }
+  pendingCanvasResize = false;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvasW = canvasEl.parentElement.clientWidth;
-  canvasH = canvasEl.parentElement.clientHeight;
+  canvasW = w;
+  canvasH = h;
   canvasEl.width = canvasW * dpr; canvasEl.height = canvasH * dpr;
   canvasEl.style.width = canvasW + "px"; canvasEl.style.height = canvasH + "px";
   ctxEl.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1522,7 +1531,10 @@ function resizeTreeCanvas() {
 function addTreeNode(n) {
   n.glassX = n.x;
   n.glassY = n.y;
-  n.glassLag = n.isRoot ? 0.085 : n.isHub ? 0.07 : 0.055;
+  // Stiff spring: lens follows the ball almost 1:1 and hides it; only a
+  // fast flick makes it trail and flash the bright core. Heavier lenses
+  // (root) are a touch lazier for a subtle sense of weight.
+  n.glassLag = n.isRoot ? 0.3 : n.isHub ? 0.38 : 0.45;
   treeNodes.push(n);
   treeNodeById.set(n.id, n);
 }
@@ -1778,17 +1790,23 @@ function treeStep() {
     if (b !== dragNode) { b.vx -= fx / b.mass; b.vy -= fy / b.mass; }
   }
   for (const p of treeNodes) {
-    if (p === dragNode) continue;
-    p.vx *= treePhysics.damping; p.vy *= treePhysics.damping;
-    const speed = Math.hypot(p.vx, p.vy);
-    if (speed > treePhysics.maxSpeed) {
-      const k = treePhysics.maxSpeed / speed;
-      p.vx *= k; p.vy *= k;
+    if (p !== dragNode) {
+      p.vx *= treePhysics.damping; p.vy *= treePhysics.damping;
+      const speed = Math.hypot(p.vx, p.vy);
+      if (speed > treePhysics.maxSpeed) {
+        const k = treePhysics.maxSpeed / speed;
+        p.vx *= k; p.vy *= k;
+      }
+      p.x += p.vx; p.y += p.vy;
     }
-    p.x += p.vx; p.y += p.vy;
+    // Glass chases the ball for EVERY node — including the one being
+    // dragged (it used to be skipped, so the lens froze mid-drag and only
+    // caught up on release). The spring is stiff: at normal speeds the
+    // lens visually sticks to the ball's center and hides it; only a fast
+    // flick outruns it and reveals the bright core underneath.
     if (p.glassX == null) p.glassX = p.x;
     if (p.glassY == null) p.glassY = p.y;
-    const lag = p.glassLag || 0.06;
+    const lag = p.glassLag || 0.4;
     p.glassX += (p.x - p.glassX) * lag;
     p.glassY += (p.y - p.glassY) * lag;
   }
@@ -1862,8 +1880,10 @@ function treeDraw() {
     const isHovered = p === hoveredNode;
     const g = p.r * ease;                       // lens radius
     const gx = p.glassX ?? p.x, gy = p.glassY ?? p.y;
-    const coreR = g * (p.isLeaf ? 0.56 : 0.46);
-    const cx = p.x + g * 0.3, cy = p.y + g * 0.56; // crisp crescent peeks ~0.1g past the lens edge
+    // Core is dead-center under the lens and fully hidden at rest — it
+    // only flashes out when a fast drag makes the lens trail behind.
+    const coreR = g * (p.isLeaf ? 0.68 : 0.6);
+    const cx = p.x, cy = p.y;
     const coreColor = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     ctxEl.globalAlpha = ease;
 
@@ -1925,7 +1945,7 @@ function treeDraw() {
     ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
     ctxEl.clip();
     const softness = Math.min(0.62, 0.34 + g * 0.008); // larger => blurrier
-    const sx = p.x + g * 0.12, sy = p.y + g * 0.22;
+    const sx = p.x, sy = p.y + g * 0.1; // centered on the ball, slight depth
     const drawStain = (hue, offX) => {
       const stain = ctxEl.createRadialGradient(sx + offX, sy, 1, sx + offX, sy, Math.max(1, g * 0.92));
       stain.addColorStop(0, `hsla(${hue}, ${Math.min(96, p.sat + 4)}%, ${Math.min(62, p.light + 4)}%, .74)`);
@@ -1980,6 +2000,9 @@ function treeDraw() {
 
 function treeLoop() {
   if (document.getElementById("screen-intro")?.classList.contains("active")) {
+    // Self-heal: if a resize landed while this screen was hidden, the
+    // canvas size is stale — re-measure now that it's visible.
+    if (pendingCanvasResize || !canvasW || !canvasH) resizeTreeCanvas();
     treeStep(); updateCamera(); treeDraw();
   }
   requestAnimationFrame(treeLoop);
@@ -2354,7 +2377,13 @@ initTreeCanvas();
 // ── URL params on load (e.g. after payment: ?screen=test&tier=onett&paid=1) ──
 (function() {
   const p = URL_PARAMS;
-  if (p.get("reset") === "1") {
+  // /reset swaps the PERSISTENT keyboard's URL to carry a reset param, so
+  // every later reopen arrives with it too. Process each reset value only
+  // once — otherwise reopening the app right after finishing a test wipes
+  // the just-saved result (user-reported: "graph gone until I redo test").
+  const resetParam = p.get("reset");
+  if (resetParam && localStorage.getItem("poprobui_reset_seen") !== resetParam) {
+    localStorage.setItem("poprobui_reset_seen", resetParam);
     resetLocalUserState();
   } else if (p.get("screen") === "results") {
     showHistory();

@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+import time
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -40,7 +41,7 @@ GIFT_USER_IDS = {
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "24"
+MINIAPP_VERSION = "25"
 
 
 def miniapp_url(extra: str = "") -> str:
@@ -341,9 +342,12 @@ async def cmd_menu(message: Message):
 
 @dp.message(Command("reset"))
 async def cmd_reset(message: Message):
+    # Unique value per /reset: the keyboard URL persists across reopenings,
+    # and the miniapp deduplicates by this value — a static "reset=1" would
+    # wipe freshly saved results on EVERY reopen after a single /reset.
     await message.answer(
         "Готово. Открой кнопку «🧭 Пройти тест» ниже — мини-апп очистит локальную карту, историю и согласие на этом устройстве.",
-        reply_markup=kb_main("reset=1", message.from_user.id),
+        reply_markup=kb_main(f"reset={int(time.time())}", message.from_user.id),
     )
 
 
