@@ -40,7 +40,7 @@ GIFT_USER_IDS = {
 # Bump this whenever miniapp/index.html changes — Telegram's in-app WebView
 # caches aggressively by exact URL, so a stale query string means users
 # keep seeing an old build after a redeploy. Cheap, reliable cache-bust.
-MINIAPP_VERSION = "23"
+MINIAPP_VERSION = "24"
 
 
 def miniapp_url(extra: str = "") -> str:
