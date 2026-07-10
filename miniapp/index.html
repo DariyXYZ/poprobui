@@ -733,6 +733,14 @@
     border-radius: 50%;
     animation: spin .75s linear infinite;
   }
+  .btn-inline-spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -1715,7 +1723,7 @@ function buildTreeSchedule() {
           x: hub.x + Math.cos(satAngle) * satOrbit,
           y: hub.y + Math.sin(satAngle) * satOrbit,
           vx: 0, vy: 0, r: leafRadius(weight > 1.6 ? 2 : 1),
-          isLeaf: true, showLabel: rank < 3,
+          isLeaf: true, showLabel: true,
           hue: tone.hue, sat: Math.max(46, tone.sat - 14), light: Math.max(34, tone.light - 8),
           mass: 1.1, bornAt: performance.now(),
         });
@@ -1840,6 +1848,49 @@ function screenToWorld(x, y) {
   return { x: (x - canvasW / 2) / camScale + camCX, y: (y - camScreenCY()) / camScale + camCY };
 }
 
+// Frosted-dot sprites: a crisp disc (radius DOT_SPRITE_R inside a
+// DOT_SPRITE_SIZE canvas) is blurred by downsampling to a tiny canvas and
+// bilinearly upsampling back — the standard cheap gaussian that matches
+// Figma's frost, uniform in every direction (no gradient banding), and it
+// works where ctx.filter doesn't (older iOS WebViews). Cached per color.
+const DOT_SPRITE_SIZE = 128, DOT_SPRITE_R = 34, DOT_SPRITE_MID = 14;
+const dotSpriteCache = new Map();
+function dotSprite(hue, hue2, sat, light) {
+  const key = [Math.round(hue), hue2 == null ? "" : Math.round(hue2), Math.round(sat), Math.round(light)].join("|");
+  const hit = dotSpriteCache.get(key);
+  if (hit) return hit;
+  const S = DOT_SPRITE_SIZE, R = DOT_SPRITE_R;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const x = c.getContext("2d");
+  if (hue2 != null) {
+    // root: the dot itself carries the two-hue gradient, then the whole
+    // disc is blurred as one shape — an even blob, not two lumpy stains
+    const gr = x.createLinearGradient(S / 2 - R, S / 2 - R, S / 2 + R, S / 2 + R);
+    gr.addColorStop(0, `hsl(${hue}, ${sat}%, ${Math.min(66, light + 8)}%)`);
+    gr.addColorStop(1, `hsl(${hue2}, ${sat}%, ${Math.max(46, light - 6)}%)`);
+    x.fillStyle = gr;
+  } else {
+    x.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
+  }
+  x.beginPath();
+  x.arc(S / 2, S / 2, R, 0, Math.PI * 2);
+  x.fill();
+  const m = document.createElement("canvas");
+  m.width = m.height = DOT_SPRITE_MID;
+  const mx = m.getContext("2d");
+  mx.imageSmoothingEnabled = true;
+  mx.imageSmoothingQuality = "high";
+  mx.drawImage(c, 0, 0, DOT_SPRITE_MID, DOT_SPRITE_MID);
+  x.clearRect(0, 0, S, S);
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = "high";
+  x.drawImage(m, 0, 0, S, S);
+  if (dotSpriteCache.size > 48) dotSpriteCache.clear();
+  dotSpriteCache.set(key, c);
+  return c;
+}
+
 function treeDraw() {
   if (!ctxEl) return;
   const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -1882,10 +1933,9 @@ function treeDraw() {
     const gx = p.glassX ?? p.x, gy = p.glassY ?? p.y;
     // Flat Figma-style frosted glass (per user reference): a FLAT white
     // disc — no sphere gradient, no gloss highlight — with ONE blurred
-    // colored dot behind it, 2.2× smaller than the glass. The crisp dot
-    // is dead-center and hidden at rest; a fast drag makes the lagging
-    // glass trail and flash it.
-    const dotR = g / 2.2;
+    // colored dot behind it. The crisp dot is dead-center and hidden at
+    // rest; a fast drag makes the lagging glass trail and flash it.
+    const dotR = g / 2.6;
     const cx = p.x, cy = p.y;
     ctxEl.globalAlpha = ease;
 
@@ -1925,31 +1975,20 @@ function treeDraw() {
     ctxEl.shadowBlur = 0;
     ctxEl.shadowOffsetY = 0;
 
-    // 3. the same dot seen "through" the frost: one blurred dot, solid
-    // read ≈ g/2.2, feathered edge ≈ its own radius again (Frost≈15).
-    // Blur is pure gradient stops — no ctx.filter (unsupported in older
-    // iOS WebViews). Clipped so a trailing glass never leaks color out.
+    // 3. the same dot seen "through" the frost: a real gaussian-style
+    // blur (Figma's frost look), not gradient rings — a crisp disc is
+    // rendered once to an offscreen sprite, downsampled hard and
+    // upsampled back (classic cheap gaussian), cached per color.
+    // Clipped so a trailing glass never leaks color out.
     ctxEl.save();
     ctxEl.beginPath();
     ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
     ctxEl.clip();
-    const drawDot = (hue, offX, offY) => {
-      const grad = ctxEl.createRadialGradient(cx + offX, cy + offY, 0, cx + offX, cy + offY, Math.max(1, dotR * 2));
-      grad.addColorStop(0, `hsla(${hue}, ${p.sat}%, ${p.light}%, .9)`);
-      grad.addColorStop(0.45, `hsla(${hue}, ${p.sat}%, ${p.light}%, .74)`);
-      grad.addColorStop(1, `hsla(${hue}, ${p.sat}%, ${p.light}%, 0)`);
-      ctxEl.fillStyle = grad;
-      ctxEl.beginPath();
-      ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
-      ctxEl.fill();
-    };
-    if (p.isRoot && p.hue2 != null) {
-      // root: the dot itself is a gradient — two hues blended in one blob
-      drawDot(p.hue, -g * 0.08, -g * 0.1);
-      drawDot(p.hue2, g * 0.08, g * 0.12);
-    } else {
-      drawDot(p.hue, 0, 0);
-    }
+    ctxEl.globalAlpha = ease * 0.9;
+    const sprite = dotSprite(p.hue, p.isRoot ? p.hue2 : null, p.sat, p.light);
+    const spriteScale = dotR / DOT_SPRITE_R;
+    const half = (DOT_SPRITE_SIZE / 2) * spriteScale;
+    ctxEl.drawImage(sprite, cx - half, cy - half, DOT_SPRITE_SIZE * spriteScale, DOT_SPRITE_SIZE * spriteScale);
     ctxEl.restore();
 
     ctxEl.globalAlpha = 1;
@@ -2151,12 +2190,15 @@ async function confirmStartTest(testId) {
     }
     saveConsent();
   }
-  closeSheet();
   if (testId === FREE_TEST_ID) {
+    closeSheet();
     selectedTest = testId;
     startTest();
     return;
   }
+  // Paid tier: the sheet STAYS OPEN with a loading CTA while the wallet
+  // debit round-trips — closing it first dumped the user onto the graph
+  // with nothing happening until the server answered.
   await requestPurchase(testId);
 }
 
@@ -2166,21 +2208,27 @@ async function requestPurchase(testId) {
   const btn = document.getElementById("start-test-btn");
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = cta("Списываем баланс", "Пару секунд", "wallet");
+    btn.innerHTML = `<span class="btn-content"><span class="btn-inline-spinner"></span><span class="btn-copy"><span class="btn-label">Списываем баланс</span><span class="btn-sub">Ждём ответ сервера…</span></span></span>`;
   }
+  const beginTest = () => {
+    closeSheet();
+    selectedTest = testId;
+    startTest();
+  };
+  let started = false;
   try {
     const res = await fetchWithTimeout(`${API_URL}/wallet/debit`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ tg_user_id: TG_USER_ID, test_id: testId, amount: price })
-    }, 3500);
+    }, 5000);
     if (!res.ok) throw new Error(`wallet debit failed: ${res.status}`);
     const data = await res.json();
     if (data.ok) {
       walletBalanceCents = data.balance;
       updateWalletBadge();
-      selectedTest = testId;
-      startTest();
+      started = true;
+      beginTest();
       return;
     }
     requestTopupInChat(testId, price);
@@ -2189,13 +2237,15 @@ async function requestPurchase(testId) {
     if (walletBalanceCents >= price) {
       walletBalanceCents -= price;
       updateWalletBadge();
-      selectedTest = testId;
-      startTest();
+      started = true;
+      beginTest();
       return;
     }
     requestTopupInChat(testId, price);
   } finally {
-    if (btn && document.getElementById("screen-test") && !document.getElementById("screen-test").classList.contains("active")) {
+    // Restore the CTA whenever the test didn't start (topup path with a
+    // failed sendData keeps the sheet open — the button must come back).
+    if (btn && !started) {
       btn.disabled = false;
       const meta = TEST_META[testId];
       btn.innerHTML = cta("Списать с баланса", meta.price, meta.icon);
