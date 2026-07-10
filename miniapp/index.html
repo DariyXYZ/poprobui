@@ -1880,17 +1880,19 @@ function treeDraw() {
     const isHovered = p === hoveredNode;
     const g = p.r * ease;                       // lens radius
     const gx = p.glassX ?? p.x, gy = p.glassY ?? p.y;
-    // Core is dead-center under the lens and fully hidden at rest — it
-    // only flashes out when a fast drag makes the lens trail behind.
-    const coreR = g * (p.isLeaf ? 0.68 : 0.6);
+    // Flat Figma-style frosted glass (per user reference): a FLAT white
+    // disc — no sphere gradient, no gloss highlight — with ONE blurred
+    // colored dot behind it, 2.2× smaller than the glass. The crisp dot
+    // is dead-center and hidden at rest; a fast drag makes the lagging
+    // glass trail and flash it.
+    const dotR = g / 2.2;
     const cx = p.x, cy = p.y;
-    const coreColor = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     ctxEl.globalAlpha = ease;
 
-    // hover: soft colored halo behind the lens (spec says no strokes)
+    // hover: soft colored halo behind the glass (no strokes)
     if (isHovered) {
       const halo = ctxEl.createRadialGradient(gx, gy, g * 0.7, gx, gy, g * 1.45);
-      halo.addColorStop(0, `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .22)`);
+      halo.addColorStop(0, `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .2)`);
       halo.addColorStop(1, `hsla(${p.hue}, ${p.sat}%, ${p.light}%, 0)`);
       ctxEl.fillStyle = halo;
       ctxEl.beginPath();
@@ -1898,82 +1900,56 @@ function treeDraw() {
       ctxEl.fill();
     }
 
-    // 1. crisp bright core under the lens
-    ctxEl.shadowBlur = 4 + coreR * 0.5;
-    ctxEl.shadowColor = `hsla(${p.hue}, ${p.sat}%, ${Math.min(64, p.light + 6)}%, .4)`;
+    // 1. crisp bright dot under the glass (visible only when the glass
+    // trails behind on a fast drag)
     if (p.isRoot && p.hue2 != null) {
-      const coreGrad = ctxEl.createLinearGradient(cx - coreR, cy - coreR, cx + coreR, cy + coreR);
+      const coreGrad = ctxEl.createLinearGradient(cx - dotR, cy - dotR, cx + dotR, cy + dotR);
       coreGrad.addColorStop(0, `hsl(${p.hue}, ${p.sat}%, ${Math.min(64, p.light + 6)}%)`);
       coreGrad.addColorStop(1, `hsl(${p.hue2}, ${p.sat}%, ${Math.max(48, p.light - 4)}%)`);
       ctxEl.fillStyle = coreGrad;
     } else {
-      ctxEl.fillStyle = coreColor;
+      ctxEl.fillStyle = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
     }
     ctxEl.beginPath();
-    ctxEl.arc(cx, cy, Math.max(0.5, coreR), 0, Math.PI * 2);
+    ctxEl.arc(cx, cy, Math.max(0.5, dotR), 0, Math.PI * 2);
     ctxEl.fill();
 
-    // 2. milky matte lens on top — bigger lens, wider/softer drop shadow
-    ctxEl.shadowColor = dark ? "rgba(0,0,0,.5)" : "rgba(35,42,74,.16)";
-    ctxEl.shadowBlur = 8 + g * 0.9;
-    ctxEl.shadowOffsetY = 2 + g * 0.14;
-    const lens = ctxEl.createRadialGradient(
-      gx - g * 0.35, gy - g * 0.4, Math.max(1, g * 0.1),
-      gx, gy, Math.max(1, g)
-    );
-    if (dark) {
-      lens.addColorStop(0, "rgba(255,255,255,.34)");
-      lens.addColorStop(0.6, "rgba(255,255,255,.18)");
-      lens.addColorStop(1, "rgba(255,255,255,.10)");
-    } else {
-      lens.addColorStop(0, "rgba(255,255,255,.99)");
-      lens.addColorStop(0.55, "rgba(253,253,255,.96)");
-      lens.addColorStop(1, "rgba(243,245,252,.9)");
-    }
-    ctxEl.fillStyle = lens;
+    // 2. flat frosted disc on top — wider, softer shadow for bigger glass
+    ctxEl.shadowColor = dark ? "rgba(0,0,0,.45)" : "rgba(40,46,76,.13)";
+    ctxEl.shadowBlur = 6 + g * 0.7;
+    ctxEl.shadowOffsetY = 1 + g * 0.08;
+    ctxEl.fillStyle = dark ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.97)";
     ctxEl.beginPath();
     ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
     ctxEl.fill();
     ctxEl.shadowBlur = 0;
     ctxEl.shadowOffsetY = 0;
 
-    // 3. blurred color stain inside the lens (clipped) — bigger lens →
-    // softer, wider falloff (blur is faked with gradient stops: no
-    // ctx.filter, it's unsupported in older iOS WebViews)
+    // 3. the same dot seen "through" the frost: one blurred dot, solid
+    // read ≈ g/2.2, feathered edge ≈ its own radius again (Frost≈15).
+    // Blur is pure gradient stops — no ctx.filter (unsupported in older
+    // iOS WebViews). Clipped so a trailing glass never leaks color out.
     ctxEl.save();
     ctxEl.beginPath();
     ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
     ctxEl.clip();
-    const softness = Math.min(0.62, 0.34 + g * 0.008); // larger => blurrier
-    const sx = p.x, sy = p.y + g * 0.1; // centered on the ball, slight depth
-    const drawStain = (hue, offX) => {
-      const stain = ctxEl.createRadialGradient(sx + offX, sy, 1, sx + offX, sy, Math.max(1, g * 0.92));
-      stain.addColorStop(0, `hsla(${hue}, ${Math.min(96, p.sat + 4)}%, ${Math.min(62, p.light + 4)}%, .74)`);
-      stain.addColorStop(softness, `hsla(${hue}, ${p.sat}%, ${p.light}%, .3)`);
-      stain.addColorStop(1, `hsla(${hue}, ${p.sat}%, ${p.light}%, 0)`);
-      ctxEl.fillStyle = stain;
+    const drawDot = (hue, offX, offY) => {
+      const grad = ctxEl.createRadialGradient(cx + offX, cy + offY, 0, cx + offX, cy + offY, Math.max(1, dotR * 2));
+      grad.addColorStop(0, `hsla(${hue}, ${p.sat}%, ${p.light}%, .9)`);
+      grad.addColorStop(0.45, `hsla(${hue}, ${p.sat}%, ${p.light}%, .74)`);
+      grad.addColorStop(1, `hsla(${hue}, ${p.sat}%, ${p.light}%, 0)`);
+      ctxEl.fillStyle = grad;
       ctxEl.beginPath();
       ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
       ctxEl.fill();
     };
     if (p.isRoot && p.hue2 != null) {
-      drawStain(p.hue, -g * 0.28);
-      drawStain(p.hue2, g * 0.26);
+      // root: the dot itself is a gradient — two hues blended in one blob
+      drawDot(p.hue, -g * 0.08, -g * 0.1);
+      drawDot(p.hue2, g * 0.08, g * 0.12);
     } else {
-      drawStain(p.hue, 0);
+      drawDot(p.hue, 0, 0);
     }
-    // top-left micro highlight — keeps the lens reading as glossy glass
-    ctxEl.globalAlpha = ease * (dark ? 0.3 : 0.5);
-    const hi = ctxEl.createRadialGradient(
-      gx - g * 0.38, gy - g * 0.42, 1,
-      gx - g * 0.38, gy - g * 0.42, Math.max(1, g * 0.34)
-    );
-    hi.addColorStop(0, "rgba(255,255,255,.95)");
-    hi.addColorStop(1, "rgba(255,255,255,0)");
-    ctxEl.fillStyle = hi;
-    ctxEl.beginPath();
-    ctxEl.arc(gx - g * 0.38, gy - g * 0.42, Math.max(1, g * 0.34), 0, Math.PI * 2);
-    ctxEl.fill();
     ctxEl.restore();
 
     ctxEl.globalAlpha = 1;
