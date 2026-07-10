@@ -1253,11 +1253,11 @@ function handleTestComplete(data) {
   resultScores = data.scores;
   resultTopTypes = data.top_types;
   resultRecommendations = data.recommendations || [];
+  saveTreeResult(selectedTest, data.scores, data.top_types);
   saveToHistory(selectedTest, data.scores, data.top_types, data.recommendations);
 
   showScreen("screen-intro");
   rebuildTreeInstant(); // silently place what was already there — no replay
-  saveTreeResult(selectedTest, data.scores, data.top_types);
   const root = treeNodeById.get(ROOT_ID);
   if (root) { root.r = rootRadius(completedTests().length); root.bornAt = performance.now(); } // pulse
   updateGraphStatus();
@@ -1519,7 +1519,13 @@ function resizeTreeCanvas() {
   if (!treeNodes.length) { camCX = canvasW / 2; camCY = canvasH / 2; camScale = 1.1; }
 }
 
-function addTreeNode(n) { treeNodes.push(n); treeNodeById.set(n.id, n); }
+function addTreeNode(n) {
+  n.glassX = n.x;
+  n.glassY = n.y;
+  n.glassLag = n.isRoot ? 0.085 : n.isHub ? 0.07 : 0.055;
+  treeNodes.push(n);
+  treeNodeById.set(n.id, n);
+}
 function clearTreeScheduleTimers() {
   treeScheduleTimers.forEach(id => clearTimeout(id));
   treeScheduleTimers = [];
@@ -1569,22 +1575,31 @@ const HUB_GROUP_HUE = {
   research: 334, nature: 132, extreme: 18, business: 38,
 };
 const HUB_GROUP_TONE = {
-  tech: { hue: 202, sat: 68, light: 48 },
-  social: { hue: 156, sat: 54, light: 45 },
-  art: { hue: 286, sat: 52, light: 54 },
-  data: { hue: 224, sat: 52, light: 48 },
-  research: { hue: 334, sat: 58, light: 52 },
-  nature: { hue: 132, sat: 48, light: 44 },
-  extreme: { hue: 18, sat: 70, light: 54 },
-  business: { hue: 38, sat: 72, light: 49 },
+  tech: { hue: 215, sat: 86, light: 48 },
+  social: { hue: 165, sat: 72, light: 42 },
+  art: { hue: 292, sat: 68, light: 51 },
+  data: { hue: 244, sat: 78, light: 54 },
+  research: { hue: 334, sat: 76, light: 52 },
+  nature: { hue: 142, sat: 64, light: 43 },
+  extreme: { hue: 18, sat: 78, light: 54 },
+  business: { hue: 39, sat: 84, light: 50 },
 };
+const ROOT_TONE = (() => {
+  const tones = [
+    { hue: 232, sat: 94, light: 53 },
+    { hue: 188, sat: 90, light: 45 },
+    { hue: 268, sat: 88, light: 56 },
+    { hue: 342, sat: 86, light: 54 },
+  ];
+  return tones[Math.floor(Math.random() * tones.length)];
+})();
 
 function toneForGroup(groupId, rank = 0) {
   const base = HUB_GROUP_TONE[groupId] || { hue: 210, sat: 46, light: 50 };
   return {
     hue: (base.hue + hueJitter * 0.22 + 360) % 360,
-    sat: Math.max(38, base.sat - Math.min(rank, 5) * 2),
-    light: Math.max(38, Math.min(58, base.light + (rank === 0 ? 2 : 0) - Math.min(rank, 4) * 1.2)),
+    sat: Math.max(48, base.sat - Math.min(rank, 5) * 2.5),
+    light: Math.max(38, Math.min(60, base.light + (rank === 0 ? 2 : 0) - Math.min(rank, 4) * 1.1)),
   };
 }
 
@@ -1640,7 +1655,7 @@ function buildTreeSchedule() {
       id: ROOT_ID, label: name,
       x: canvasW / 2, y: canvasH / 2,
       vx: 0, vy: 0, r: rootRadius(doneCount),
-      isRoot: true, hue: 248, sat: 54, light: 58,
+      isRoot: true, hue: ROOT_TONE.hue, sat: ROOT_TONE.sat, light: ROOT_TONE.light,
       mass: 18, fixedCore: true, bornAt: performance.now(),
     });
   });
@@ -1686,7 +1701,7 @@ function buildTreeSchedule() {
           y: hub.y + Math.sin(satAngle) * satOrbit,
           vx: 0, vy: 0, r: leafRadius(weight > 1.6 ? 2 : 1),
           isLeaf: true, showLabel: rank < 3,
-          hue: tone.hue, sat: Math.max(34, tone.sat - 10), light: Math.max(34, tone.light - 8),
+          hue: tone.hue, sat: Math.max(46, tone.sat - 14), light: Math.max(34, tone.light - 8),
           mass: 1.1, bornAt: performance.now(),
         });
         treeEdges.push({ a: id, b: profId, kind: "leaf", converged: rank < 3 });
@@ -1768,6 +1783,11 @@ function treeStep() {
       p.vx *= k; p.vy *= k;
     }
     p.x += p.vx; p.y += p.vy;
+    if (p.glassX == null) p.glassX = p.x;
+    if (p.glassY == null) p.glassY = p.y;
+    const lag = p.glassLag || 0.06;
+    p.glassX += (p.x - p.glassX) * lag;
+    p.glassY += (p.y - p.glassY) * lag;
   }
 }
 
@@ -1821,43 +1841,63 @@ function treeDraw() {
   for (const p of treeNodes) {
     const ease = Math.min(1, 1 - Math.pow(1 - Math.min((now - p.bornAt) / POP_MS, 1), 3));
     const isHovered = p === hoveredNode;
+    const rr = p.r * ease;
+    const glassDx = p.isRoot ? -p.r * 0.28 : -p.r * 0.22;
+    const glassDy = p.isRoot ? -p.r * 0.24 : -p.r * 0.2;
+    const glassR = p.isRoot ? p.r * 0.72 : p.isHub ? p.r * 0.68 : p.r * 0.62;
+    const baseColor = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
+    const brightColor = `hsl(${p.hue}, ${Math.min(96, p.sat + 8)}%, ${Math.min(66, p.light + 9)}%)`;
+    const deepColor = `hsl(${p.hue}, ${Math.min(98, p.sat + 4)}%, ${Math.max(30, p.light - 12)}%)`;
     ctxEl.globalAlpha = ease;
+
+    ctxEl.shadowBlur = (p.isRoot ? 22 : p.isHub ? 14 : 7) + (isHovered ? 7 : 0);
+    ctxEl.shadowColor = `hsla(${p.hue}, ${Math.min(96, p.sat + 4)}%, ${Math.min(62, p.light + 8)}%, ${p.isRoot ? .34 : .24})`;
+    const bodyGrad = ctxEl.createRadialGradient(
+      p.x - p.r * 0.32, p.y - p.r * 0.34, Math.max(1, p.r * 0.08),
+      p.x + p.r * 0.18, p.y + p.r * 0.2, Math.max(1, p.r)
+    );
+    bodyGrad.addColorStop(0, brightColor);
+    bodyGrad.addColorStop(0.52, baseColor);
+    bodyGrad.addColorStop(1, deepColor);
+    ctxEl.fillStyle = bodyGrad;
     ctxEl.beginPath();
-    ctxEl.shadowBlur = (p.isRoot ? 18 : p.isConverged ? 13 : p.isHub ? 12 : 5) + (isHovered ? 8 : 0);
-    ctxEl.shadowColor = p.isRoot
-      ? (dark ? "rgba(177,168,255,.42)" : "rgba(91,84,238,.22)")
-      : `hsla(${p.hue}, ${Math.max(32, p.sat - 6)}%, ${Math.min(64, p.light + 6)}%, .48)`;
-    ctxEl.fillStyle = p.isRoot
-      ? (dark ? "#F4F1FF" : "#F7F2E8")
-      : `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
-    ctxEl.arc(p.x, p.y, p.r * ease, 0, Math.PI * 2);
+    ctxEl.arc(p.x, p.y, rr, 0, Math.PI * 2);
     ctxEl.fill();
-    if (p.isConverged) {
-      ctxEl.shadowBlur = 0;
-      ctxEl.lineWidth = Math.max(1.8, p.r * 0.09) / camScale;
-      ctxEl.strokeStyle = dark ? "rgba(245,242,255,.78)" : "rgba(255,255,255,.82)";
-      ctxEl.stroke();
-      ctxEl.beginPath();
-      ctxEl.lineWidth = 1 / camScale;
-      ctxEl.strokeStyle = dark ? "rgba(178,168,255,.42)" : "rgba(68,58,130,.22)";
-      ctxEl.arc(p.x, p.y, Math.max(1, p.r * ease + 4 / camScale), 0, Math.PI * 2);
-      ctxEl.stroke();
-    }
-    if (p.isRoot) {
-      ctxEl.shadowBlur = 0;
-      ctxEl.lineWidth = 1.6 / camScale;
-      ctxEl.strokeStyle = dark ? "rgba(177,168,255,.72)" : "rgba(91,84,238,.34)";
-      ctxEl.stroke();
-      ctxEl.beginPath();
-      ctxEl.lineWidth = 1 / camScale;
-      ctxEl.strokeStyle = dark ? "rgba(255,255,255,.7)" : "rgba(255,255,255,.92)";
-      ctxEl.arc(p.x, p.y, Math.max(1, p.r * ease - 5 / camScale), 0, Math.PI * 2);
-      ctxEl.stroke();
-    }
+
+    ctxEl.shadowBlur = 0;
+    ctxEl.save();
+    ctxEl.beginPath();
+    ctxEl.arc(p.x, p.y, rr, 0, Math.PI * 2);
+    ctxEl.clip();
+    ctxEl.globalAlpha = ease * (p.isLeaf ? 0.66 : 0.78);
+    ctxEl.filter = `blur(${Math.max(2.5, p.r * 0.14)}px)`;
+    const gx = (p.glassX ?? p.x) + glassDx;
+    const gy = (p.glassY ?? p.y) + glassDy;
+    const glassGrad = ctxEl.createRadialGradient(
+      gx - glassR * 0.35, gy - glassR * 0.3, Math.max(1, glassR * 0.08),
+      gx, gy, Math.max(1, glassR)
+    );
+    glassGrad.addColorStop(0, dark ? "rgba(255,255,255,.82)" : "rgba(255,255,255,.78)");
+    glassGrad.addColorStop(0.48, `hsla(${p.hue}, 88%, 82%, .36)`);
+    glassGrad.addColorStop(1, `hsla(${p.hue}, 92%, 46%, .08)`);
+    ctxEl.fillStyle = glassGrad;
+    ctxEl.beginPath();
+    ctxEl.arc(gx, gy, glassR * ease, 0, Math.PI * 2);
+    ctxEl.fill();
+    ctxEl.filter = "none";
+    ctxEl.globalAlpha = ease * (dark ? .28 : .22);
+    ctxEl.fillStyle = "rgba(255,255,255,.9)";
+    ctxEl.beginPath();
+    ctxEl.arc(gx - glassR * 0.22, gy - glassR * 0.24, Math.max(1, glassR * 0.18 * ease), 0, Math.PI * 2);
+    ctxEl.fill();
+    ctxEl.restore();
+
     if (isHovered) {
-      ctxEl.lineWidth = 2 / camScale;
-      ctxEl.strokeStyle = dark ? "#fff" : "#4C45B8";
-      ctxEl.stroke();
+      ctxEl.globalAlpha = ease * 0.16;
+      ctxEl.fillStyle = dark ? "#fff" : "#1E2A44";
+      ctxEl.beginPath();
+      ctxEl.arc(p.x, p.y, rr + 4 / camScale, 0, Math.PI * 2);
+      ctxEl.fill();
     }
     ctxEl.shadowBlur = 0;
     ctxEl.globalAlpha = 1;
@@ -2253,8 +2293,6 @@ initStaticCtas();
 updateWalletBadge();
 refreshWalletBalance();
 initTreeCanvas();
-renderGraphScreen();
-treeLoop();
 
 // ── URL params on load (e.g. after payment: ?screen=test&tier=onett&paid=1) ──
 (function() {
@@ -2267,8 +2305,11 @@ treeLoop();
     const tier = p.get("tier");
     if (tier && TESTS[tier]) selectedTest = tier;
     startTest();
+  } else {
+    renderGraphScreen();
   }
 })();
+treeLoop();
 
 </script>
 </body>
