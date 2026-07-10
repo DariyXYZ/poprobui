@@ -1849,20 +1849,31 @@ function screenToWorld(x, y) {
 }
 
 // Frosted-dot sprites: a crisp disc (radius DOT_SPRITE_R inside a
-// DOT_SPRITE_SIZE canvas) is blurred by downsampling to a tiny canvas and
-// bilinearly upsampling back — the standard cheap gaussian that matches
-// Figma's frost, uniform in every direction (no gradient banding), and it
-// works where ctx.filter doesn't (older iOS WebViews). Cached per color.
-const DOT_SPRITE_SIZE = 128, DOT_SPRITE_R = 34, DOT_SPRITE_MID = 14;
+// DOT_SPRITE_SIZE canvas) is blurred with a progressive mip-chain —
+// downsample 2× at a time to DOT_SPRITE_MID, then upsample 2× at a time
+// back. Chained small resamples approximate a true gaussian (Figma's
+// frost) without the blocky bilinear artifacts a single big stretch
+// produces, and work where ctx.filter doesn't (older iOS WebViews).
+// 256px base so big nodes on retina never magnify past the source.
+const DOT_SPRITE_SIZE = 256, DOT_SPRITE_R = 64, DOT_SPRITE_MID = 18;
 const dotSpriteCache = new Map();
+function resampleCanvas(src, w) {
+  const c = document.createElement("canvas");
+  c.width = c.height = w;
+  const x = c.getContext("2d");
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = "high";
+  x.drawImage(src, 0, 0, w, w);
+  return c;
+}
 function dotSprite(hue, hue2, sat, light) {
   const key = [Math.round(hue), hue2 == null ? "" : Math.round(hue2), Math.round(sat), Math.round(light)].join("|");
   const hit = dotSpriteCache.get(key);
   if (hit) return hit;
   const S = DOT_SPRITE_SIZE, R = DOT_SPRITE_R;
-  const c = document.createElement("canvas");
-  c.width = c.height = S;
-  const x = c.getContext("2d");
+  let cur = document.createElement("canvas");
+  cur.width = cur.height = S;
+  const x = cur.getContext("2d");
   if (hue2 != null) {
     // root: the dot itself carries the two-hue gradient, then the whole
     // disc is blurred as one shape — an even blob, not two lumpy stains
@@ -1876,19 +1887,16 @@ function dotSprite(hue, hue2, sat, light) {
   x.beginPath();
   x.arc(S / 2, S / 2, R, 0, Math.PI * 2);
   x.fill();
-  const m = document.createElement("canvas");
-  m.width = m.height = DOT_SPRITE_MID;
-  const mx = m.getContext("2d");
-  mx.imageSmoothingEnabled = true;
-  mx.imageSmoothingQuality = "high";
-  mx.drawImage(c, 0, 0, DOT_SPRITE_MID, DOT_SPRITE_MID);
-  x.clearRect(0, 0, S, S);
-  x.imageSmoothingEnabled = true;
-  x.imageSmoothingQuality = "high";
-  x.drawImage(m, 0, 0, S, S);
+  // mip-chain down…
+  let w = S;
+  while (Math.floor(w / 2) >= DOT_SPRITE_MID) { w = Math.floor(w / 2); cur = resampleCanvas(cur, w); }
+  if (w > DOT_SPRITE_MID) { w = DOT_SPRITE_MID; cur = resampleCanvas(cur, w); }
+  // …and back up, 2× per step
+  while (w * 2 <= S) { w *= 2; cur = resampleCanvas(cur, w); }
+  if (w < S) cur = resampleCanvas(cur, S);
   if (dotSpriteCache.size > 48) dotSpriteCache.clear();
-  dotSpriteCache.set(key, c);
-  return c;
+  dotSpriteCache.set(key, cur);
+  return cur;
 }
 
 function treeDraw() {
