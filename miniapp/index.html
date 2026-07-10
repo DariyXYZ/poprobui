@@ -205,6 +205,20 @@
     margin-bottom: 6px;
   }
   .results-sub { font-size: 13px; color: var(--text2); }
+  .results-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .results-nav-icons { display: flex; gap: 8px; }
+  .salary-blur { filter: blur(6px); user-select: none; pointer-events: none; }
+  .salary-note {
+    font-size: 11px;
+    color: rgba(255,255,255,.72);
+    margin: -8px 0 14px;
+    line-height: 1.45;
+  }
 
   .top-cards { display: flex; gap: 8px; margin-bottom: 24px; }
   .top-card {
@@ -403,7 +417,17 @@
     color: rgba(255,255,255,.65);
     margin-bottom: 8px;
   }
-  .type-hero-profs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .type-hero-profs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .type-hero-profs::-webkit-scrollbar { display: none; }
+  .type-hero-profs .type-hero-tag { flex-shrink: 0; }
   .type-hero-tag {
     background: rgba(255,255,255,.16);
     color: #fff;
@@ -492,22 +516,26 @@
   }
   .graph-nav-left { left: 20px; }
   .graph-nav-right { right: 20px; }
-  .balance-pill-mini {
+  .balance-btn-wide {
     height: 36px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 0 11px;
+    gap: 8px;
+    padding: 0 13px;
     border-radius: 9px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text);
+    font-family: var(--font-head);
     font-size: 12px;
     font-weight: 700;
     box-shadow: 0 6px 18px rgba(18, 15, 35, .06);
     white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
   }
-  .balance-pill-mini.is-empty { color: var(--muted); }
+  .balance-btn-wide:active { opacity: .75; }
+  .balance-btn-wide span.is-empty { color: var(--muted); }
   .icon-btn-mini {
     width: 36px; height: 36px;
     border-radius: 9px;
@@ -767,15 +795,14 @@
 <div id="screen-intro" class="screen graph-screen active">
   <canvas id="tree-canvas"></canvas>
   <div class="graph-tooltip" id="graph-tooltip"></div>
-  <div class="graph-logo">Попробуй</div>
   <div class="graph-header">
     <div class="intro-title graph-title">Твоя карта интересов</div>
     <div class="graph-status" id="graph-status">Начни с бесплатного теста</div>
   </div>
   <div class="graph-nav graph-nav-left">
-    <div class="balance-pill-mini is-empty" id="wallet-balance-pill">0 ₽</div>
-    <button class="icon-btn-mini" onclick="openPricingSheet()" title="Тарифы" aria-label="Тарифы">
+    <button class="balance-btn-wide" onclick="openPricingSheet()" title="Баланс и тарифы" aria-label="Баланс и тарифы">
       <svg class="ui-icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      <span class="is-empty wallet-balance-out" id="wallet-balance-pill">0 ₽</span>
     </button>
   </div>
   <div class="graph-nav graph-nav-right">
@@ -823,20 +850,30 @@
 
 <!-- ── Screen: Results ─────────────────────────────────────────────────── -->
 <div id="screen-results" class="screen">
-  <div class="results-header">
-    <div class="results-emoji"><svg class="ui-icon ui-icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
-    <div class="results-title">Твой профиль готов!</div>
-    <div class="results-sub" id="results-sub">Вот что мы узнали о тебе</div>
+  <div class="results-nav">
+    <button class="balance-btn-wide" onclick="openPricingSheet()" title="Баланс и тарифы" aria-label="Баланс и тарифы">
+      <svg class="ui-icon" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      <span class="is-empty wallet-balance-out">0 ₽</span>
+    </button>
+    <div class="results-nav-icons">
+      <button class="icon-btn-mini" onclick="showHistory()" title="Мои результаты" aria-label="Мои результаты">
+        <svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/></svg>
+      </button>
+      <button class="icon-btn-mini" onclick="showScreen('screen-intro'); renderGraphScreen();" title="Смотреть карту" aria-label="Смотреть карту">
+        <svg class="ui-icon" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+      </button>
+    </div>
   </div>
-
-  <div class="top-cards" id="top-cards"></div>
+  <div class="results-header">
+    <div class="results-title">Твой профиль готов!</div>
+  </div>
 
   <div class="type-hero" id="type-hero"></div>
 
+  <div id="upgrade-block"></div>
+
   <div class="section-label">Все шкалы</div>
   <div id="bars-wrap"></div>
-
-  <div id="upgrade-block"></div>
 
   <div class="btn-footer">
     <button class="btn btn-primary" id="btn-pdf" onclick="downloadPDF()">Получить PDF</button>
@@ -873,7 +910,7 @@ const ICON_PATHS = {
   cog: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V22a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 18l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.3 8A2 2 0 1 1 7.1 5.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1Z"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   table: '<path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 9v9"/><path d="M17 5v13"/>',
-  palette: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2a10 10 0 0 0 0 20h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1 0-4h3a7 7 0 0 0 0-14h-3Z"/>',
+  palette: '<path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>',
   microscope: '<path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14 3 8l4-4 6 6"/><path d="m8 12 4-4"/>',
   wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.3 5.3L3 18l3 3 6.4-6.4a4 4 0 0 0 5.3-5.3l-2.8 2.8-2.1-2.1 2.8-2.8Z"/>',
   briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 13h20"/>',
@@ -931,10 +968,10 @@ function formatRub(cents) {
   return kop ? `${rub},${String(kop).padStart(2, "0")} ₽` : `${rub} ₽`;
 }
 function updateWalletBadge() {
-  const el = document.getElementById("wallet-balance-pill");
-  if (!el) return;
-  el.textContent = formatRub(walletBalanceCents);
-  el.classList.toggle("is-empty", walletBalanceCents <= 0);
+  document.querySelectorAll(".wallet-balance-out").forEach(el => {
+    el.textContent = formatRub(walletBalanceCents);
+    el.classList.toggle("is-empty", walletBalanceCents <= 0);
+  });
 }
 async function refreshWalletBalance() {
   if (!TG_USER_ID) return;
@@ -1296,25 +1333,25 @@ function handleTestComplete(data) {
   }, 900);
 }
 
+// Salary line for the type card: the free tier shows a blurred PLACEHOLDER
+// (not the real number — blur is cosmetic and the DOM is inspectable) with
+// an honest note; paid tiers show the real range.
+function salaryBlockHtml(testId, rich) {
+  if (testId === FREE_TEST_ID) {
+    // only the NUMBERS are blurred; the icon and «₽ / месяц» stay sharp so
+    // it's obvious what's hidden behind the blur
+    return `<div class="type-hero-salary">${icon("money", "ui-icon-sm")} <span class="salary-blur">80 000 – 140 000</span>&nbsp;₽ / месяц</div>
+      <div class="salary-note">Слишком мало данных для расчёта зарплат — точные цифры открываются в платных тестах</div>`;
+  }
+  return rich.salary ? `<div class="type-hero-salary">${icon("money", "ui-icon-sm")} ${rich.salary}</div>` : "";
+}
+
 function renderResults(data) {
   const { scores, top_types, recommendations } = data;
   resultTopTypes = top_types;
   resultRecommendations = recommendations || [];
   const sorted = Object.entries(scores).sort((a,b) => b[1] - a[1]);
   const maxScore = sorted[0]?.[1] || 1;
-
-  // results subtitle per tier
-  const tierLabels = { ddo:"Профиль по Климову", yovayshi:"Профиль склонностей", onett:"Профиль RIASEC" };
-  document.getElementById("results-sub").textContent = tierLabels[selectedTest] || "Вот что мы узнали о тебе";
-
-  // top cards
-  const topHTML = top_types.slice(0, 3).map((name, i) => `
-    <div class="top-card ${i===0?'first':''}">
-      <div class="rank">${["#1","#2","#3"][i]}</div>
-      <div class="type-name">${name}</div>
-    </div>
-  `).join("");
-  document.getElementById("top-cards").innerHTML = topHTML;
 
   // bars
   const barsHTML = sorted.map(([name, score]) => {
@@ -1343,22 +1380,24 @@ function renderResults(data) {
         <div class="type-hero-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
       </div>
     </div>
-    ${rich.salary ? `<div class="type-hero-salary">${icon("money", "ui-icon-sm")} ${rich.salary}</div>` : ""}
+    ${salaryBlockHtml(selectedTest, rich)}
     <div class="type-hero-profs-label">Подходящие профессии</div>
     <div class="type-hero-profs">${profs.slice(0, tierLimit).map(p => `<span class="type-hero-tag">${p}</span>`).join("")}</div>
   `;
+  updateWalletBadge();
 
-  // upgrade teaser for lower tiers
+  // upsell banner right under the type card: opens the next test's
+  // preview popup IN PLACE — the user can start it without leaving
   const upgradeBlock = document.getElementById("upgrade-block");
-  if (selectedTest === "ddo") {
+  const next = nextTestId();
+  if (next) {
+    const meta = TEST_META[next];
+    const pitch = next === "yovayshi"
+      ? "<b>Стандарт</b> находит склонности через непрямые вопросы — это точнее, чем выбор в лоб"
+      : "<b>Полный</b> — международная методика RIASEC: 6 типов, 10 профессий и зарплата по каждой";
     upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
-      <div class="tier-upgrade-box-text"><b>Стандарт</b> находит склонности через непрямые вопросы — это точнее, чем выбор в лоб</div>
-      <button class="tier-upgrade-box-btn" onclick="goToTier('yovayshi')">${cta("Пройти «Стандарт»", TEST_META.yovayshi.price, "search")}</button>
-    </div>`;
-  } else if (selectedTest === "yovayshi") {
-    upgradeBlock.innerHTML = `<div class="tier-upgrade-box">
-      <div class="tier-upgrade-box-text"><b>Полный</b> — международная методика RIASEC: 6 типов, 10 профессий и зарплата по каждой</div>
-      <button class="tier-upgrade-box-btn" onclick="goToTier('onett')">${cta("Пройти «Полный»", TEST_META.onett.price, "globe")}</button>
+      <div class="tier-upgrade-box-text">${pitch}</div>
+      <button class="btn btn-primary" onclick="openPreviewSheet('${next}')">${cta(`Пройти «${meta.name}»`, meta.price, next === "yovayshi" ? "search" : "globe")}</button>
     </div>`;
   } else {
     upgradeBlock.innerHTML = "";
@@ -1639,6 +1678,94 @@ function makeRootTone() {
 }
 let ROOT_TONE = makeRootTone();
 
+// ── Reference-poster palette ("color palette" poster look) ──────────────
+// The root is a gradient DISC with a crisp white hole; satellites are
+// flat solid discs colored by the side of the root they grow from.
+// Base anchors mimic the reference (ink / vivid blue / periwinkle /
+// peach / violet); the randomizer shifts all hues together and spins
+// the whole arrangement around the disc.
+let PALETTE = makePalette();
+let rootDiscSprite = null;
+function makePalette() {
+  const hueShift = Math.random() * 56 - 28;
+  const spin = Math.random() * 360;
+  const H = h => (h + hueShift + 360) % 360;
+  const anchors = [
+    { a: 270, h: H(252), s: 62, l: 13 },  // ink — top in the reference
+    { a: 335, h: H(263), s: 100, l: 51 }, // vivid violet — right
+    { a: 60,  h: H(16),  s: 100, l: 76 }, // peach — bottom
+    { a: 140, h: H(233), s: 96,  l: 84 }, // periwinkle — lower left
+    { a: 205, h: H(228), s: 100, l: 50 }, // vivid blue — left
+  ].map(st => ({ ...st, a: (st.a + spin) % 360 })).sort((x, y) => x.a - y.a);
+  return { anchors };
+}
+function colorAtAngle(deg) {
+  const list = PALETTE.anchors;
+  const a = ((deg % 360) + 360) % 360;
+  let prev = list[list.length - 1];
+  for (const st of list) { if (st.a <= a) prev = st; }
+  let next = list.find(st => st.a > a) || list[0];
+  let span = (next.a - prev.a + 360) % 360;
+  if (!span) span = 360;
+  const t = ((a - prev.a + 360) % 360) / span;
+  const dh = ((next.h - prev.h + 540) % 360) - 180; // shortest hue path
+  return {
+    h: (prev.h + dh * t + 360) % 360,
+    s: prev.s + (next.s - prev.s) * t,
+    l: prev.l + (next.l - prev.l) * t,
+  };
+}
+
+// Root disc sprite: conic palette gradient + soft warm inner glow,
+// crisp outer edge, crisp white hole — cached until the palette changes.
+const ROOT_DISC_SIZE = 512, ROOT_HOLE_RATIO = 0.34;
+function getRootDiscSprite() {
+  if (rootDiscSprite) return rootDiscSprite;
+  const S = ROOT_DISC_SIZE, c2 = S / 2;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const x = cv.getContext("2d");
+  if (typeof x.createConicGradient === "function") {
+    const c0 = colorAtAngle(0);
+    const grad = x.createConicGradient(0, c2, c2);
+    grad.addColorStop(0, `hsl(${c0.h}, ${c0.s}%, ${c0.l}%)`);
+    PALETTE.anchors.forEach(st => grad.addColorStop(st.a / 360, `hsl(${st.h}, ${st.s}%, ${st.l}%)`));
+    grad.addColorStop(1, `hsl(${c0.h}, ${c0.s}%, ${c0.l}%)`);
+    x.fillStyle = grad;
+    x.fillRect(0, 0, S, S);
+  } else {
+    // WebViews without conic gradients: blend of anchor blobs
+    const c0 = colorAtAngle(0);
+    x.fillStyle = `hsl(${c0.h}, ${c0.s}%, ${c0.l}%)`;
+    x.fillRect(0, 0, S, S);
+    PALETTE.anchors.forEach(st => {
+      const bx = c2 + Math.cos(st.a * Math.PI / 180) * c2 * 0.55;
+      const by = c2 + Math.sin(st.a * Math.PI / 180) * c2 * 0.55;
+      const g2 = x.createRadialGradient(bx, by, 0, bx, by, c2 * 1.15);
+      g2.addColorStop(0, `hsl(${st.h}, ${st.s}%, ${st.l}%)`);
+      g2.addColorStop(1, `hsla(${st.h}, ${st.s}%, ${st.l}%, 0)`);
+      x.fillStyle = g2;
+      x.fillRect(0, 0, S, S);
+    });
+  }
+  // soft warm bloom near the hole (the reference's inner light)
+  const glow = x.createRadialGradient(c2, c2 + S * 0.17, 0, c2, c2 + S * 0.17, S * 0.4);
+  glow.addColorStop(0, "rgba(255,243,232,.96)");
+  glow.addColorStop(1, "rgba(255,243,232,0)");
+  x.fillStyle = glow;
+  x.fillRect(0, 0, S, S);
+  // crisp disc edge
+  x.globalCompositeOperation = "destination-in";
+  x.fillStyle = "#fff";
+  x.beginPath(); x.arc(c2, c2, c2, 0, Math.PI * 2); x.fill();
+  // crisp hole
+  x.globalCompositeOperation = "destination-out";
+  x.beginPath(); x.arc(c2, c2, c2 * ROOT_HOLE_RATIO, 0, Math.PI * 2); x.fill();
+  x.globalCompositeOperation = "source-over";
+  rootDiscSprite = cv;
+  return cv;
+}
+
 function toneForGroup(groupId, rank = 0) {
   const base = HUB_GROUP_TONE[groupId] || { hue: 210, sat: 46, light: 50 };
   return {
@@ -1713,7 +1840,9 @@ function buildTreeSchedule() {
     schedule.push(() => {
       const root = treeNodeById.get(ROOT_ID);
       const r = planetRadius(planet.score, rank, planet.testIds.size);
-      const tone = toneForGroup(planet.id, rank);
+      // reference rule: the satellite takes the color of the side of the
+      // root disc it grows from
+      const tone = colorAtAngle(angle * 180 / Math.PI);
       const p = {
         x: root.x + Math.cos(angle) * orbit,
         y: root.y + Math.sin(angle) * orbit,
@@ -1721,7 +1850,7 @@ function buildTreeSchedule() {
       addTreeNode({
         id, label: planet.label, x: p.x, y: p.y, vx: 0, vy: 0,
         r, isHub: true, isPrimary: rank < 3,
-        hue: tone.hue, sat: tone.sat, light: tone.light,
+        hue: tone.h, sat: tone.s, light: tone.l,
         mass: 6 + r * 0.18, score: planet.score, rank,
         fromTests: planet.testIds, isConverged: planet.testIds.size >= 2,
         bornAt: performance.now(),
@@ -1739,14 +1868,17 @@ function buildTreeSchedule() {
       schedule.push(() => {
         const hub = treeNodeById.get(id);
         if (!hub) return;
-        const tone = toneForGroup(planet.id, rank);
+        // leaves = shades of their hub's side color (ref: small darker/
+        // lighter dots around each big disc)
+        const tone = colorAtAngle(angle * 180 / Math.PI);
+        const shade = Math.random() * 26 - 13;
         addTreeNode({
           id: profId, label: profName,
           x: hub.x + Math.cos(satAngle) * satOrbit,
           y: hub.y + Math.sin(satAngle) * satOrbit,
           vx: 0, vy: 0, r: leafRadius(weight > 1.6 ? 2 : 1),
           isLeaf: true, showLabel: true,
-          hue: tone.hue, sat: Math.max(46, tone.sat - 14), light: Math.max(34, tone.light - 8),
+          hue: tone.h, sat: tone.s, light: Math.max(16, Math.min(86, tone.l + shade)),
           mass: 1.1, bornAt: performance.now(),
         });
         treeEdges.push({ a: id, b: profId, kind: "leaf", converged: rank < 3 });
@@ -1923,110 +2055,90 @@ function treeDraw() {
   const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const now = performance.now();
   ctxEl.clearRect(0, 0, canvasW, canvasH);
-  // Cool off-white backing so the milky lenses read against the page —
-  // pure white glass on a pure white body would only be visible by shadow.
-  if (!dark) {
-    const bg = ctxEl.createLinearGradient(0, 0, 0, canvasH);
-    bg.addColorStop(0, "#F6F7FB");
-    bg.addColorStop(1, "#EDEFF6");
-    ctxEl.fillStyle = bg;
-    ctxEl.fillRect(0, 0, canvasW, canvasH);
-  }
+  // Reference poster: clean white page with a chain of thin ellipse
+  // outlines running down the screen (the rotated/portrait arrangement).
+  ctxEl.fillStyle = dark ? "#0E0E18" : "#FFFFFF";
+  ctxEl.fillRect(0, 0, canvasW, canvasH);
+  ctxEl.strokeStyle = dark ? "rgba(255,255,255,.06)" : "rgba(30,34,60,.07)";
+  ctxEl.lineWidth = 1;
+  // identical ellipses, centered on the vertical axis, always fitting the
+  // screen width (reference arrangement)
+  const exr = canvasW / 2 - 14;
+  const eyr = exr * 0.66;
+  [0.14, 0.38, 0.62, 0.86].forEach(fy => {
+    ctxEl.beginPath();
+    ctxEl.ellipse(canvasW / 2, canvasH * fy, exr, eyr, 0, 0, Math.PI * 2);
+    ctxEl.stroke();
+  });
   ctxEl.save();
   ctxEl.translate(canvasW / 2, camScreenCY());
   ctxEl.scale(camScale, camScale);
   ctxEl.translate(-camCX, -camCY);
 
+  const nodeEase = (p) => {
+    let e2 = Math.min(1, 1 - Math.pow(1 - Math.min((now - p.bornAt) / POP_MS, 1), 3));
+    if (p.dyingAt) e2 = Math.min(e2, Math.max(0, 1 - (now - p.dyingAt) / POP_MS));
+    return e2;
+  };
+
+  // thin connector lines in the satellite's own color (as in the poster);
+  // an edge fades out together with its nodes — no skeleton left behind
   for (const e of treeEdges) {
     const a = treeNodeById.get(e.a), b = treeNodeById.get(e.b);
     if (!a || !b) continue;
-    ctxEl.strokeStyle = e.converged
-      ? (dark ? "rgba(178,168,255,.42)" : "rgba(96,104,138,.22)")
-      : (dark ? "rgba(255,255,255,.13)" : "rgba(96,104,138,.16)");
-    ctxEl.lineWidth = (e.kind === "planet" ? 1.5 + (e.strength || 0) * 1.4 : e.converged ? 1.4 : 0.9) / camScale;
+    const edgeEase = Math.min(nodeEase(a), nodeEase(b));
+    if (edgeEase <= 0.01) continue;
+    ctxEl.globalAlpha = edgeEase;
+    ctxEl.strokeStyle = b.hue != null && !b.isRoot
+      ? `hsla(${b.hue}, ${b.sat}%, ${Math.min(b.light, 62)}%, .5)`
+      : (dark ? "rgba(255,255,255,.14)" : "rgba(96,104,138,.25)");
+    ctxEl.lineWidth = 1 / camScale;
     ctxEl.beginPath(); ctxEl.moveTo(a.x, a.y); ctxEl.lineTo(b.x, b.y); ctxEl.stroke();
   }
+  ctxEl.globalAlpha = 1;
 
-  // Figma-reference node: bright saturated core sits UNDER a large milky
-  // glass lens. The lens is the node's body (radius = p.r) drawn at the
-  // lagged glass position, so it trails the core in motion and settles
-  // centered over it at rest. The core peeks out down-right as a crisp
-  // crescent; inside the lens the same color reads as a blurred stain.
+  // Poster nodes: crisp flat discs. The root is a gradient DONUT (conic
+  // palette + warm glow, crisp white hole); every satellite is a solid
+  // disc in the color of the root's side it grows from.
   for (const p of treeNodes) {
-    let ease = Math.min(1, 1 - Math.pow(1 - Math.min((now - p.bornAt) / POP_MS, 1), 3));
-    if (p.dyingAt) ease = Math.min(ease, Math.max(0, 1 - (now - p.dyingAt) / POP_MS));
+    const ease = nodeEase(p);
     if (ease <= 0.01) continue;
     const isHovered = p === hoveredNode;
-    const g = p.r * ease;                       // lens radius
-    const gx = p.glassX ?? p.x, gy = p.glassY ?? p.y;
-    // Flat Figma-style frosted glass (per user reference): a FLAT white
-    // disc — no sphere gradient, no gloss highlight — with ONE blurred
-    // colored dot behind it. The crisp dot is dead-center and hidden at
-    // rest; a fast drag makes the lagging glass trail and flash it.
-    const dotR = g / 2.6;
-    const cx = p.x, cy = p.y;
+    const r = p.r * ease;
     ctxEl.globalAlpha = ease;
 
-    // hover: soft colored halo behind the glass (no strokes)
-    if (isHovered) {
-      const halo = ctxEl.createRadialGradient(gx, gy, g * 0.7, gx, gy, g * 1.45);
+    if (isHovered && !p.isRoot) {
+      const halo = ctxEl.createRadialGradient(p.x, p.y, r * 0.8, p.x, p.y, r * 1.45);
       halo.addColorStop(0, `hsla(${p.hue}, ${p.sat}%, ${p.light}%, .2)`);
       halo.addColorStop(1, `hsla(${p.hue}, ${p.sat}%, ${p.light}%, 0)`);
       ctxEl.fillStyle = halo;
       ctxEl.beginPath();
-      ctxEl.arc(gx, gy, g * 1.45, 0, Math.PI * 2);
+      ctxEl.arc(p.x, p.y, r * 1.45, 0, Math.PI * 2);
       ctxEl.fill();
     }
 
-    // 1. crisp bright dot under the glass (visible only when the glass
-    // trails behind on a fast drag)
-    if (p.isRoot && p.hue2 != null) {
-      const coreGrad = ctxEl.createLinearGradient(cx - dotR, cy - dotR, cx + dotR, cy + dotR);
-      coreGrad.addColorStop(0, `hsl(${p.hue}, ${p.sat}%, ${Math.min(64, p.light + 6)}%)`);
-      coreGrad.addColorStop(0.5, `hsl(${p.hue2}, ${p.sat}%, ${p.light}%)`);
-      coreGrad.addColorStop(1, `hsl(${p.hue3 ?? p.hue2}, ${p.sat}%, ${Math.max(48, p.light - 4)}%)`);
-      ctxEl.fillStyle = coreGrad;
+    if (p.isRoot) {
+      // constant gentle light-blue aura (never palette-colored)
+      const aura = ctxEl.createRadialGradient(p.x, p.y, r * 0.85, p.x, p.y, r * 1.55);
+      aura.addColorStop(0, "rgba(122,152,255,.16)");
+      aura.addColorStop(1, "rgba(122,152,255,0)");
+      ctxEl.fillStyle = aura;
+      ctxEl.beginPath();
+      ctxEl.arc(p.x, p.y, r * 1.55, 0, Math.PI * 2);
+      ctxEl.fill();
+      const sprite = getRootDiscSprite();
+      ctxEl.drawImage(sprite, p.x - r, p.y - r, r * 2, r * 2);
+      // opaque hole — background ellipse lines must never show through
+      ctxEl.fillStyle = dark ? "#0E0E18" : "#FFFFFF";
+      ctxEl.beginPath();
+      ctxEl.arc(p.x, p.y, r * ROOT_HOLE_RATIO, 0, Math.PI * 2);
+      ctxEl.fill();
     } else {
       ctxEl.fillStyle = `hsl(${p.hue}, ${p.sat}%, ${p.light}%)`;
-    }
-    ctxEl.beginPath();
-    ctxEl.arc(cx, cy, Math.max(0.5, dotR), 0, Math.PI * 2);
-    ctxEl.fill();
-
-    // 2. flat frosted disc on top — wider, softer shadow for bigger glass
-    ctxEl.shadowColor = dark ? "rgba(0,0,0,.45)" : "rgba(40,46,76,.13)";
-    ctxEl.shadowBlur = 6 + g * 0.7;
-    ctxEl.shadowOffsetY = 1 + g * 0.08;
-    ctxEl.fillStyle = dark ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.97)";
-    ctxEl.beginPath();
-    ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
-    ctxEl.fill();
-    ctxEl.shadowBlur = 0;
-    ctxEl.shadowOffsetY = 0;
-
-    // 3. the same dot seen "through" the frost: analytic gaussian-profile
-    // falloff (see addFrostStops) — perfectly round at any size/zoom/DPR.
-    // Clipped so a trailing glass never leaks color out.
-    ctxEl.save();
-    ctxEl.beginPath();
-    ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
-    ctxEl.clip();
-    ctxEl.globalAlpha = ease;
-    const outerR = Math.max(1, dotR * FROST_SPREAD);
-    if (p.isRoot && p.hue2 != null) {
-      const sprite = rootDotSprite(p.hue, p.hue2, p.hue3 ?? p.hue2, p.sat, p.light);
-      const sc = outerR / (ROOT_SPRITE_SIZE / 2);
-      ctxEl.drawImage(sprite, cx - outerR, cy - outerR, ROOT_SPRITE_SIZE * sc, ROOT_SPRITE_SIZE * sc);
-    } else {
-      const grad = ctxEl.createRadialGradient(cx, cy, 0, cx, cy, outerR);
-      addFrostStops(grad, a => `hsla(${p.hue}, ${p.sat}%, ${p.light}%, ${a})`);
-      ctxEl.fillStyle = grad;
       ctxEl.beginPath();
-      ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
+      ctxEl.arc(p.x, p.y, r, 0, Math.PI * 2);
       ctxEl.fill();
     }
-    ctxEl.restore();
-
     ctxEl.globalAlpha = 1;
   }
   ctxEl.textAlign = "center";
@@ -2037,14 +2149,19 @@ function treeDraw() {
     if (ease <= 0.01) continue;
     ctxEl.globalAlpha = ease;
     const labelSize = p.isRoot ? 14 : p.isHub ? Math.max(11, Math.min(16, p.r * 0.48)) : 9.5;
+    if (p.isRoot) {
+      ctxEl.font = `800 ${labelSize}px Outfit, system-ui, sans-serif`;
+      ctxEl.fillStyle = dark ? "rgba(237,234,251,.95)" : "rgba(30,27,58,.95)";
+      ctxEl.fillText(p.label, p.x, p.y - p.r - 8);
+      ctxEl.globalAlpha = 1;
+      continue;
+    }
     ctxEl.font = `${p.isLeaf ? 650 : 700} ${labelSize}px Outfit, system-ui, sans-serif`;
-    ctxEl.fillStyle = p.isRoot
-      ? (dark ? "rgba(33,30,58,.96)" : "rgba(42,37,78,.96)")
-      : p.isLeaf
-        ? (dark ? "rgba(237,234,251,.72)" : "rgba(43,50,72,.62)")
-        : p.isConverged
-          ? (dark ? "rgba(230,226,255,.96)" : "rgba(54,48,108,.94)")
-          : (dark ? "rgba(237,234,251,.92)" : "rgba(43,50,72,.92)");
+    ctxEl.fillStyle = p.isLeaf
+      ? (dark ? "rgba(237,234,251,.72)" : "rgba(43,50,72,.62)")
+      : p.isConverged
+        ? (dark ? "rgba(230,226,255,.96)" : "rgba(54,48,108,.94)")
+        : (dark ? "rgba(237,234,251,.92)" : "rgba(43,50,72,.92)");
     ctxEl.fillText(p.label, p.x, p.y - p.r - 7);
     ctxEl.globalAlpha = 1;
   }
@@ -2109,10 +2226,17 @@ function wireTreeInteraction() {
       tooltip.style.opacity = "0";
     }
   }
-  function onUp() {
+  function onUp(e) {
     if (downNode && moveDist < 6 && downNode.isRoot) onGraphCta();
     dragNode = null; downNode = null;
     canvasEl.classList.remove("dragging");
+    // touch has no hover-end: without this the colored halo and tooltip
+    // stick to the last tapped node forever
+    if (e && e.type === "touchend") {
+      hoveredNode = null;
+      const tooltip = document.getElementById("graph-tooltip");
+      if (tooltip) tooltip.style.opacity = "0";
+    }
   }
   canvasEl.addEventListener("mousedown", onDown);
   canvasEl.addEventListener("mousemove", onMove);
@@ -2125,6 +2249,8 @@ function wireTreeInteraction() {
 function randomizeLook() {
   hueJitter = Math.random() * 30 - 15;
   ROOT_TONE = makeRootTone();
+  PALETTE = makePalette();
+  rootDiscSprite = null;
   treePhysics = graphPhysics();
   rebuildTreeAnimated();
 }
@@ -2154,7 +2280,7 @@ function playIntroDemo() {
     const hubId = "demo::hub::" + gid;
     const angle = -Math.PI / 2 + rank * (Math.PI * 2 / count) + (Math.random() - 0.5) * 0.3;
     const orbit = 112 + Math.random() * 28;
-    const tone = HUB_GROUP_TONE[gid] || { hue: 210, sat: 70, light: 50 };
+    const tone = colorAtAngle(angle * 180 / Math.PI);
     const r = 13 + Math.random() * 15;
     schedule.push(() => {
       const root = treeNodeById.get(ROOT_ID);
@@ -2163,7 +2289,7 @@ function playIntroDemo() {
         id: hubId, label: HUB_GROUP_LABEL[gid],
         x: root.x + Math.cos(angle) * orbit, y: root.y + Math.sin(angle) * orbit,
         vx: 0, vy: 0, r, isHub: true,
-        hue: tone.hue, sat: tone.sat, light: tone.light,
+        hue: tone.h, sat: tone.s, light: tone.l,
         mass: 6 + r * 0.18, bornAt: performance.now(),
       });
       treeEdges.push({ a: ROOT_ID, b: hubId, kind: "planet", strength: 0.5 });
@@ -2181,7 +2307,7 @@ function playIntroDemo() {
           x: hub.x + Math.cos(satAngle) * 52, y: hub.y + Math.sin(satAngle) * 52,
           vx: 0, vy: 0, r: 4 + Math.random() * 2.5,
           isLeaf: true, showLabel: true,
-          hue: tone.hue, sat: Math.max(46, tone.sat - 14), light: Math.max(34, tone.light - 8),
+          hue: tone.h, sat: tone.s, light: Math.max(16, Math.min(86, tone.l + (Math.random() * 26 - 13))),
           mass: 1.1, bornAt: performance.now(),
         });
         treeEdges.push({ a: hubId, b: profId, kind: "leaf" });
@@ -2190,11 +2316,12 @@ function playIntroDemo() {
   });
   runSchedule(schedule, 60);
   const growMs = schedule.length * 60;
-  // hold the full map, then fold it back in the same order it appeared
+  // hold the full map, then fold it back ONE ball at a time — smallest
+  // first, biggest last (leaves melt away, then the planets, root stays)
   const holdTimer = setTimeout(() => {
-    const order = treeNodes.filter(n => !n.isRoot);
+    const order = treeNodes.filter(n => !n.isRoot).sort((a, b) => a.r - b.r);
     order.forEach((n, i) => {
-      const t = setTimeout(() => { n.dyingAt = performance.now(); }, i * 45);
+      const t = setTimeout(() => { n.dyingAt = performance.now(); }, i * 75);
       treeScheduleTimers.push(t);
     });
     const doneTimer = setTimeout(() => {
@@ -2202,7 +2329,7 @@ function playIntroDemo() {
       treeNodeById = new Map(treeNodes.map(n => [n.id, n]));
       treeEdges = [];
       updateGraphStatus();
-    }, order.length * 45 + POP_MS + 150);
+    }, order.length * 75 + POP_MS + 150);
     treeScheduleTimers.push(doneTimer);
   }, growMs + 1500);
   treeScheduleTimers.push(holdTimer);
@@ -2246,11 +2373,10 @@ function closeSheet(e) {
 
 function openPricingSheet() {
   const done = completedTests();
+  const next = nextTestId();
   const rows = TEST_SEQUENCE.map(id => {
     const meta = TEST_META[id];
     const isDone = done.includes(id);
-    const isNext = id === nextTestId();
-    const status = isDone ? "пройден ✓" : meta.price;
     return `
       <div class="tier-head-row" style="margin-bottom:10px;${isDone ? 'opacity:.55' : ''}">
         <div style="display:flex;align-items:center;gap:12px">
@@ -2260,17 +2386,22 @@ function openPricingSheet() {
             <div class="tier-meta" style="margin-bottom:0">${meta.meta}</div>
           </div>
         </div>
-        <span class="tier-price-tag">${status}</span>
+        <span class="tier-price-tag">${isDone ? "пройден ✓" : meta.price}</span>
       </div>
-      ${isNext ? `<button class="btn btn-secondary" style="margin-bottom:14px" onclick="closeSheet(); openPreviewSheet('${id}');">${cta(done.length ? 'Продолжить' : 'Начать', meta.name, meta.icon)}</button>` : ""}
     `;
   }).join("");
+
+  // the CTA is the sheet's action — it lives at the bottom, under the list
+  const nextCta = next
+    ? `<button class="btn btn-primary" style="margin-top:8px" onclick="closeSheet(); openPreviewSheet('${next}');">${cta(done.length ? "Продолжить" : "Начать", TEST_META[next].name, TEST_META[next].icon)}</button>`
+    : "";
 
   document.getElementById("sheet-body").innerHTML = `
     <div class="sheet-handle"></div>
     <div class="tier-name" style="font-size:18px;margin-bottom:4px">Тарифы</div>
     <div class="tier-meta" style="margin-bottom:16px">Пополняй баланс в Telegram. Стоимость теста списывается при старте.</div>
     ${rows}
+    ${nextCta}
   `;
   showSheet();
 }
@@ -2380,7 +2511,16 @@ function requestTopupInChat(testId, price) {
   }
 }
 
+let lastResultData = null;
+function openFullReport() {
+  if (!lastResultData) return;
+  closeSheet();
+  renderResults(lastResultData);
+  showScreen("screen-results");
+}
+
 function openResultSheet(testId, data) {
+  lastResultData = data;
   const { top_types } = data;
   const topType = top_types[0];
   const rich = PROF_RICH[topType] || {};
@@ -2406,13 +2546,13 @@ function openResultSheet(testId, data) {
           <div class="type-hero-desc">${rich.description || "Ведущий тип профессиональных интересов"}</div>
         </div>
       </div>
-      ${rich.salary ? `<div class="type-hero-salary">${icon("money", "ui-icon-sm")} ${rich.salary}</div>` : ""}
+      ${salaryBlockHtml(testId, rich)}
       <div class="type-hero-profs-label">Подходящие профессии</div>
       <div class="type-hero-profs">${profs.map(p => `<span class="type-hero-tag">${p}</span>`).join("")}</div>
     </div>
     ${convergence}
-    <button class="btn btn-primary" onclick="downloadPDF()">${cta("Получить PDF", "Придёт в Telegram", "fileText")}</button>
-    <button class="btn btn-secondary btn-simple" style="margin-top:8px" onclick="closeSheet()">${simpleBtn("Смотреть карту", "map")}</button>
+    <button class="btn btn-primary" onclick="openFullReport()">${cta("Подробный отчёт", "Шкалы, зарплаты и профессии", "chart")}</button>
+    <button class="btn btn-secondary btn-simple" style="margin-top:8px" onclick="downloadPDF()">${simpleBtn("Получить PDF", "fileText")}</button>
   `;
   showSheet();
 }

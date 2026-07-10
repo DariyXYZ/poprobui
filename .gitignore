@@ -24,3 +24,4 @@ bot/data/
 .DS_Store
 Thumbs.db
 *.log
+miniapp-preview/
