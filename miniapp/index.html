@@ -1855,7 +1855,10 @@ function screenToWorld(x, y) {
 // frost) without the blocky bilinear artifacts a single big stretch
 // produces, and work where ctx.filter doesn't (older iOS WebViews).
 // 256px base so big nodes on retina never magnify past the source.
-const DOT_SPRITE_SIZE = 256, DOT_SPRITE_R = 64, DOT_SPRITE_MID = 18;
+// Blur strength = (SIZE/MID) relative to R: mid-pixel footprint 25.6px on
+// a 64px disc ≈ 40% feather — noticeably frostier than the first pass
+// (v27 was ~27%, and v28's 18@256 accidentally DROPPED it to ~22%).
+const DOT_SPRITE_SIZE = 256, DOT_SPRITE_R = 64, DOT_SPRITE_MID = 10;
 const dotSpriteCache = new Map();
 function resampleCanvas(src, w) {
   const c = document.createElement("canvas");
