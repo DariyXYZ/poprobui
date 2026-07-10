@@ -1848,58 +1848,51 @@ function screenToWorld(x, y) {
   return { x: (x - canvasW / 2) / camScale + camCX, y: (y - camScreenCY()) / camScale + camCY };
 }
 
-// Frosted-dot sprites: a crisp disc (radius DOT_SPRITE_R inside a
-// DOT_SPRITE_SIZE canvas) is blurred with a progressive mip-chain —
-// downsample 2× at a time to DOT_SPRITE_MID, then upsample 2× at a time
-// back. Chained small resamples approximate a true gaussian (Figma's
-// frost) without the blocky bilinear artifacts a single big stretch
-// produces, and work where ctx.filter doesn't (older iOS WebViews).
-// 256px base so big nodes on retina never magnify past the source.
-// Blur strength = (SIZE/MID) relative to R: mid-pixel footprint 25.6px on
-// a 64px disc ≈ 40% feather — noticeably frostier than the first pass
-// (v27 was ~27%, and v28's 18@256 accidentally DROPPED it to ~22%).
-const DOT_SPRITE_SIZE = 256, DOT_SPRITE_R = 64, DOT_SPRITE_MID = 10;
-const dotSpriteCache = new Map();
-function resampleCanvas(src, w) {
-  const c = document.createElement("canvas");
-  c.width = c.height = w;
-  const x = c.getContext("2d");
-  x.imageSmoothingEnabled = true;
-  x.imageSmoothingQuality = "high";
-  x.drawImage(src, 0, 0, w, w);
-  return c;
-}
-function dotSprite(hue, hue2, sat, light) {
-  const key = [Math.round(hue), hue2 == null ? "" : Math.round(hue2), Math.round(sat), Math.round(light)].join("|");
-  const hit = dotSpriteCache.get(key);
-  if (hit) return hit;
-  const S = DOT_SPRITE_SIZE, R = DOT_SPRITE_R;
-  let cur = document.createElement("canvas");
-  cur.width = cur.height = S;
-  const x = cur.getContext("2d");
-  if (hue2 != null) {
-    // root: the dot itself carries the two-hue gradient, then the whole
-    // disc is blurred as one shape — an even blob, not two lumpy stains
-    const gr = x.createLinearGradient(S / 2 - R, S / 2 - R, S / 2 + R, S / 2 + R);
-    gr.addColorStop(0, `hsl(${hue}, ${sat}%, ${Math.min(66, light + 8)}%)`);
-    gr.addColorStop(1, `hsl(${hue2}, ${sat}%, ${Math.max(46, light - 6)}%)`);
-    x.fillStyle = gr;
-  } else {
-    x.fillStyle = `hsl(${hue}, ${sat}%, ${light}%)`;
+// Frosted dot — analytic gaussian profile, no pixels involved.
+// Key insight: a gaussian-blurred DISC is radially symmetric, so its
+// exact alpha falloff can be encoded as dense smoothstep stops in a
+// plain radial gradient (visually identical to a true erf/gaussian
+// edge). Resolution-independent, artifact-free at any zoom/DPR, and
+// needs no ctx.filter (unsupported on iOS < 18) and no resampling
+// (the mip-chain approach turned discs into rounded squares).
+// Profile: full alpha plateau to FROST_PLATEAU·outerR, then smoothstep
+// falloff to 0 at outerR. outerR = dotR·FROST_SPREAD.
+const FROST_PLATEAU = 0.38, FROST_SPREAD = 2.1, FROST_ALPHA = 0.94, FROST_STEPS = 10;
+function addFrostStops(grad, colorAt) {
+  grad.addColorStop(0, colorAt(FROST_ALPHA));
+  grad.addColorStop(FROST_PLATEAU, colorAt(FROST_ALPHA));
+  for (let i = 1; i <= FROST_STEPS; i++) {
+    const t = i / FROST_STEPS;
+    const a = FROST_ALPHA * (1 - (3 * t * t - 2 * t * t * t)); // smoothstep ≈ erf
+    grad.addColorStop(FROST_PLATEAU + t * (1 - FROST_PLATEAU), colorAt(a));
   }
-  x.beginPath();
-  x.arc(S / 2, S / 2, R, 0, Math.PI * 2);
-  x.fill();
-  // mip-chain down…
-  let w = S;
-  while (Math.floor(w / 2) >= DOT_SPRITE_MID) { w = Math.floor(w / 2); cur = resampleCanvas(cur, w); }
-  if (w > DOT_SPRITE_MID) { w = DOT_SPRITE_MID; cur = resampleCanvas(cur, w); }
-  // …and back up, 2× per step
-  while (w * 2 <= S) { w *= 2; cur = resampleCanvas(cur, w); }
-  if (w < S) cur = resampleCanvas(cur, S);
-  if (dotSpriteCache.size > 48) dotSpriteCache.clear();
-  dotSpriteCache.set(key, cur);
-  return cur;
+}
+// Root's two-hue dot: a linear gradient masked by the same radial alpha
+// profile (destination-in) — one even blob, cached per color pair.
+const ROOT_SPRITE_SIZE = 256;
+const rootSpriteCache = new Map();
+function rootDotSprite(hue, hue2, sat, light) {
+  const key = [Math.round(hue), Math.round(hue2), Math.round(sat), Math.round(light)].join("|");
+  const hit = rootSpriteCache.get(key);
+  if (hit) return hit;
+  const S = ROOT_SPRITE_SIZE, half = S / 2;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const x = c.getContext("2d");
+  const lin = x.createLinearGradient(0, 0, S, S);
+  lin.addColorStop(0, `hsl(${hue}, ${sat}%, ${Math.min(66, light + 8)}%)`);
+  lin.addColorStop(1, `hsl(${hue2}, ${sat}%, ${Math.max(46, light - 6)}%)`);
+  x.fillStyle = lin;
+  x.fillRect(0, 0, S, S);
+  const mask = x.createRadialGradient(half, half, 0, half, half, half);
+  addFrostStops(mask, a => `rgba(255,255,255,${a})`);
+  x.globalCompositeOperation = "destination-in";
+  x.fillStyle = mask;
+  x.fillRect(0, 0, S, S);
+  x.globalCompositeOperation = "source-over";
+  if (rootSpriteCache.size > 16) rootSpriteCache.clear();
+  rootSpriteCache.set(key, c);
+  return c;
 }
 
 function treeDraw() {
@@ -1986,20 +1979,27 @@ function treeDraw() {
     ctxEl.shadowBlur = 0;
     ctxEl.shadowOffsetY = 0;
 
-    // 3. the same dot seen "through" the frost: a real gaussian-style
-    // blur (Figma's frost look), not gradient rings — a crisp disc is
-    // rendered once to an offscreen sprite, downsampled hard and
-    // upsampled back (classic cheap gaussian), cached per color.
+    // 3. the same dot seen "through" the frost: analytic gaussian-profile
+    // falloff (see addFrostStops) — perfectly round at any size/zoom/DPR.
     // Clipped so a trailing glass never leaks color out.
     ctxEl.save();
     ctxEl.beginPath();
     ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
     ctxEl.clip();
-    ctxEl.globalAlpha = ease * 0.9;
-    const sprite = dotSprite(p.hue, p.isRoot ? p.hue2 : null, p.sat, p.light);
-    const spriteScale = dotR / DOT_SPRITE_R;
-    const half = (DOT_SPRITE_SIZE / 2) * spriteScale;
-    ctxEl.drawImage(sprite, cx - half, cy - half, DOT_SPRITE_SIZE * spriteScale, DOT_SPRITE_SIZE * spriteScale);
+    ctxEl.globalAlpha = ease;
+    const outerR = Math.max(1, dotR * FROST_SPREAD);
+    if (p.isRoot && p.hue2 != null) {
+      const sprite = rootDotSprite(p.hue, p.hue2, p.sat, p.light);
+      const sc = outerR / (ROOT_SPRITE_SIZE / 2);
+      ctxEl.drawImage(sprite, cx - outerR, cy - outerR, ROOT_SPRITE_SIZE * sc, ROOT_SPRITE_SIZE * sc);
+    } else {
+      const grad = ctxEl.createRadialGradient(cx, cy, 0, cx, cy, outerR);
+      addFrostStops(grad, a => `hsla(${p.hue}, ${p.sat}%, ${p.light}%, ${a})`);
+      ctxEl.fillStyle = grad;
+      ctxEl.beginPath();
+      ctxEl.arc(gx, gy, g, 0, Math.PI * 2);
+      ctxEl.fill();
+    }
     ctxEl.restore();
 
     ctxEl.globalAlpha = 1;
