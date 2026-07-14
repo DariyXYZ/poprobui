@@ -1,28 +1,66 @@
-from fastapi import FastAPI, HTTPException
+import time
+from collections import defaultdict, deque
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
 import aiosqlite
+import asyncio
 import os
 import json
 
+load_dotenv()
+
 from pdf import generate_pdf
+from prof_data import PROF_RICH
 from scoring import score_test
-from wallet import balance_of, debit_balance
+from wallet import balance_of, add_balance, debit_balance
+from telegram_auth import (
+    resolve_tg_user_id,
+    require_internal,
+    TelegramInitDataHeader,
+    InternalTokenHeader,
+)
 
 app = FastAPI(title="Попробуй API")
 
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv(
+        "ALLOWED_ORIGINS", "https://dariyxyz.github.io"
+    ).split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-Telegram-Init-Data", "X-Internal-Token"],
 )
 
-DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
+DATA_DIR = os.getenv("DATA_DIR") or os.path.dirname(__file__)
 os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "poprobui.db")
+
+
+# ── Minimal in-process rate limiting ────────────────────────────────────────
+# One instance (min_machines_running = 1), so a per-process dict is enough to
+# blunt brute-forcing of tg_user_id/result_id without adding a Redis dependency.
+_RATE_LIMIT_WINDOW_S = 60
+_RATE_LIMIT_MAX_HITS = 30
+_rate_buckets: dict[str, deque] = defaultdict(deque)
+
+
+def _rate_limit(request: Request, bucket: str) -> None:
+    key = f"{bucket}:{request.client.host if request.client else 'unknown'}"
+    now = time.monotonic()
+    hits = _rate_buckets[key]
+    while hits and now - hits[0] > _RATE_LIMIT_WINDOW_S:
+        hits.popleft()
+    if len(hits) >= _RATE_LIMIT_MAX_HITS:
+        raise HTTPException(status_code=429, detail="Too many requests")
+    hits.append(now)
 
 
 # ── DB init ────────────────────────────────────────────────────────────────
@@ -74,6 +112,39 @@ class WalletDebitResponse(BaseModel):
     required: int
 
 
+class WalletCreditRequest(BaseModel):
+    tg_user_id: int
+    amount: int
+
+
+class WalletCreditResponse(BaseModel):
+    balance: int
+
+
+class GeneratePdfRequest(BaseModel):
+    tg_user_id: int
+    test_id: str
+    scores: dict
+
+
+# Only these scale labels may ever appear as PDF section titles — anything
+# else in a client-supplied `scores` dict (bot's "generate_pdf" action bypasses
+# score_test()) is dropped rather than rendered.
+KNOWN_SCALE_LABELS = set(PROF_RICH.keys())
+
+
+def _sanitize_scores(scores: dict) -> dict:
+    clean = {}
+    for name, value in scores.items():
+        if name not in KNOWN_SCALE_LABELS:
+            continue
+        try:
+            clean[name] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return clean
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -82,12 +153,28 @@ async def health():
 
 
 @app.get("/wallet/{tg_user_id}")
-async def get_wallet(tg_user_id: int):
-    return {"balance": balance_of(tg_user_id)}
+async def get_wallet(
+    tg_user_id: int,
+    request: Request,
+    x_telegram_init_data: str | None = TelegramInitDataHeader,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    _rate_limit(request, "wallet_read")
+    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token)
+    balance = await asyncio.to_thread(balance_of, tg_user_id)
+    return {"balance": balance}
 
 
 @app.post("/wallet/debit", response_model=WalletDebitResponse)
-async def debit_wallet(payload: WalletDebitRequest):
+async def debit_wallet(
+    payload: WalletDebitRequest,
+    request: Request,
+    x_telegram_init_data: str | None = TelegramInitDataHeader,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    _rate_limit(request, "wallet_debit")
+    resolve_tg_user_id(payload.tg_user_id, x_telegram_init_data, x_internal_token)
+
     expected_prices = {"yovayshi": 30000, "onett": 50000}
     required = expected_prices.get(payload.test_id)
     if required is None:
@@ -95,14 +182,37 @@ async def debit_wallet(payload: WalletDebitRequest):
     if payload.amount != required:
         raise HTTPException(status_code=400, detail="Invalid amount")
 
-    rest = debit_balance(payload.tg_user_id, required)
+    rest = await asyncio.to_thread(debit_balance, payload.tg_user_id, required)
     if rest is None:
-        return WalletDebitResponse(ok=False, balance=balance_of(payload.tg_user_id), required=required)
+        balance = await asyncio.to_thread(balance_of, payload.tg_user_id)
+        return WalletDebitResponse(ok=False, balance=balance, required=required)
     return WalletDebitResponse(ok=True, balance=rest, required=required)
 
 
+@app.post("/wallet/credit", response_model=WalletCreditResponse)
+async def credit_wallet(
+    payload: WalletCreditRequest,
+    request: Request,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    # Bot-only: crediting happens after a confirmed YooKassa payment or an
+    # explicit gift grant — never something an end user can trigger directly.
+    _rate_limit(request, "wallet_credit")
+    require_internal(x_internal_token)
+    balance = await asyncio.to_thread(add_balance, payload.tg_user_id, payload.amount)
+    return WalletCreditResponse(balance=balance)
+
+
 @app.post("/submit", response_model=ResultResponse)
-async def submit_answers(payload: SubmitAnswers):
+async def submit_answers(
+    payload: SubmitAnswers,
+    request: Request,
+    x_telegram_init_data: str | None = TelegramInitDataHeader,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    _rate_limit(request, "submit")
+    resolve_tg_user_id(payload.tg_user_id, x_telegram_init_data, x_internal_token)
+
     scores = score_test(payload.test_id, payload.answers)
 
     async with aiosqlite.connect(DB_PATH) as db:
@@ -130,7 +240,15 @@ async def submit_answers(payload: SubmitAnswers):
 
 
 @app.get("/results/{tg_user_id}")
-async def get_results(tg_user_id: int):
+async def get_results(
+    tg_user_id: int,
+    request: Request,
+    x_telegram_init_data: str | None = TelegramInitDataHeader,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    _rate_limit(request, "results")
+    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token)
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
@@ -144,7 +262,16 @@ async def get_results(tg_user_id: int):
 
 
 @app.get("/pdf/{result_id}")
-async def download_pdf(result_id: int, tg_user_id: int):
+async def download_pdf(
+    result_id: int,
+    tg_user_id: int,
+    request: Request,
+    x_telegram_init_data: str | None = TelegramInitDataHeader,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    _rate_limit(request, "pdf")
+    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token)
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
@@ -160,20 +287,34 @@ async def download_pdf(result_id: int, tg_user_id: int):
     return FileResponse(path, media_type="application/pdf", filename=f"poprobui_report_{result_id}.pdf")
 
 
+@app.post("/pdf/generate")
+async def generate_pdf_for_bot(
+    payload: GeneratePdfRequest,
+    request: Request,
+    x_internal_token: str | None = InternalTokenHeader,
+):
+    # Bot-only: used for the "download PDF straight into the Telegram chat"
+    # flow, where scores come from the miniapp's local run, not /submit.
+    _rate_limit(request, "pdf_generate")
+    require_internal(x_internal_token)
+
+    scores = _sanitize_scores(payload.scores)
+    if len(scores) < 3:
+        raise HTTPException(status_code=400, detail="Not enough valid scale scores")
+    pseudo_id = int(time.time() * 1000) % 2_147_483_647
+    path = await generate_pdf(pseudo_id, payload.tg_user_id, scores, payload.test_id)
+    return FileResponse(path, media_type="application/pdf", filename="poprobui_report.pdf")
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
-PROFESSIONS = {
-    "Инноватор": ["Продакт-менеджер", "UX-дизайнер", "Разработчик", "Стартапер", "Арт-директор"],
-    "Специалист": ["Программист", "Аналитик данных", "Юрист", "Врач", "Инженер"],
-    "Аналитик":   ["Data Analyst", "Финансист", "Экономист", "Исследователь", "Стратег"],
-    "Коммуникатор": ["PR-менеджер", "Маркетолог", "Журналист", "Педагог", "Психолог"],
-    "Менеджер":   ["Руководитель проекта", "Операционный директор", "Бизнес-аналитик"],
-    "Предприниматель": ["Основатель стартапа", "Франчайзи", "Продюсер"],
-}
-
-
 def _get_recommendations(top_types: list) -> list:
+    # Recommendations come straight from prof_data's per-label profession
+    # lists — this used to keep a second, separately-keyed dict here that
+    # never matched scoring.py's actual labels, so it silently returned [].
     result = []
     for t in top_types:
-        result.extend(PROFESSIONS.get(t, []))
+        profile = PROF_RICH.get(t)
+        if profile:
+            result.extend(profile.get("profs", []))
     return result[:10]

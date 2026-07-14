@@ -3,27 +3,29 @@ import json
 import logging
 import os
 import re
-import sys
 import time
 from dotenv import load_dotenv
+
+load_dotenv()  # must run before wallet_client reads API_URL/INTERNAL_API_TOKEN at import time
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message, CallbackQuery,
     InlineKeyboardMarkup, InlineKeyboardButton,
     ReplyKeyboardMarkup, KeyboardButton,
     WebAppInfo, LabeledPrice, PreCheckoutQuery, BotCommand,
-    FSInputFile,
+    BufferedInputFile,
 )
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.storage.memory import MemoryStorage
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'api'))
-from wallet import add_balance, balance_of, debit_balance, format_money
+# bot and api are separate deployed services — wallet/pdf state and logic
+# live only in api, reached over HTTP, never imported directly (see
+# wallet_client.py for why the old direct-file-import approach broke in prod).
+from wallet_client import add_balance, balance_of, debit_balance, format_money, generate_pdf_bytes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MINIAPP_URL = os.getenv("MINIAPP_URL", "https://poprobui.railway.app")
@@ -49,12 +51,12 @@ def miniapp_url(extra: str = "") -> str:
     return f"{MINIAPP_URL}?v={MINIAPP_VERSION}{sep}{extra}"
 
 
-def wallet_extra(user_id: int | None, extra: str = "") -> str:
+async def wallet_extra(user_id: int | None, extra: str = "") -> str:
     parts = []
     if extra:
         parts.append(extra)
     if user_id is not None:
-        parts.append(f"bal={balance_of(user_id)}")
+        parts.append(f"bal={await balance_of(user_id)}")
     return "&".join(parts)
 
 bot = Bot(token=BOT_TOKEN)
@@ -109,7 +111,7 @@ async def open_paid_test_from_balance(message: Message, test_id: str) -> bool:
     info = TEST_INVOICES.get(test_id)
     if not info:
         return False
-    rest = debit_balance(message.from_user.id, info["amount"])
+    rest = await debit_balance(message.from_user.id, info["amount"], test_id)
     if rest is None:
         return False
     await message.answer(
@@ -117,7 +119,7 @@ async def open_paid_test_from_balance(message: Message, test_id: str) -> bool:
         f"Баланс: <b>{format_money(rest)}</b>.\n\n"
         "Жми «🧭 Пройти тест» — платная версия откроется сразу.",
         parse_mode="HTML",
-        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1", message.from_user.id),
+        reply_markup=await kb_main(f"screen=test&tier={test_id}&paid=1", message.from_user.id),
     )
     return True
 
@@ -224,17 +226,19 @@ async def send_topup_invoice(chat_id: int, amount: int):
 
 # ── Keyboards ──────────────────────────────────────────────────────────────
 
-def kb_main(test_url_extra: str = "", user_id: int | None = None) -> ReplyKeyboardMarkup:
+async def kb_main(test_url_extra: str = "", user_id: int | None = None) -> ReplyKeyboardMarkup:
     # test_url_extra lets the primary button carry state (e.g. after payment,
     # "screen=test&tier=X&paid=1") while staying a ReplyKeyboardMarkup button —
     # sendData() only works for Mini Apps opened this way, not via inline
     # buttons, so every entry point into a test must go through this keyboard.
+    test_extra = await wallet_extra(user_id, test_url_extra)
+    results_extra = await wallet_extra(user_id, "screen=results")
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=miniapp_url(wallet_extra(user_id, test_url_extra))))],
+            [KeyboardButton(text="🧭 Пройти тест", web_app=WebAppInfo(url=miniapp_url(test_extra)))],
             [
                 KeyboardButton(text="💳 Баланс"),
-                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url(wallet_extra(user_id, "screen=results")))),
+                KeyboardButton(text="📊 Результаты", web_app=WebAppInfo(url=miniapp_url(results_extra))),
                 KeyboardButton(text="ℹ️ Как работает"),
             ],
         ],
@@ -273,7 +277,7 @@ async def cmd_start(message: Message):
         "15 минут — и ты получишь честный разбор интересов, способностей и профессий.\n\n"
         "Нажми кнопку внизу чтобы начать 👇",
         parse_mode="HTML",
-        reply_markup=kb_main(user_id=message.from_user.id)
+        reply_markup=await kb_main(user_id=message.from_user.id)
     )
 
 
@@ -294,7 +298,7 @@ async def handle_web_app_data(message: Message):
             paid_from_balance = await open_paid_test_from_balance(message, test_id)
             if not paid_from_balance:
                 info = TEST_INVOICES.get(test_id)
-                balance = balance_of(message.from_user.id)
+                balance = await balance_of(message.from_user.id)
                 need = info["amount"] if info else 0
                 await message.answer(
                     f"На балансе {format_money(balance)}. "
@@ -315,17 +319,15 @@ async def handle_web_app_data(message: Message):
                 test_id, consent.get("version"), consent.get("accepted_at"))
     processing = await message.answer("⏳ Генерируем PDF...")
     try:
-        from pdf import generate_pdf
-        pdf_path = await generate_pdf(message.message_id, message.from_user.id, scores, test_id)
+        pdf_bytes = await generate_pdf_bytes(message.from_user.id, test_id, scores)
         await bot.send_document(
             message.chat.id,
-            FSInputFile(pdf_path, filename="poprobui_report.pdf"),
+            BufferedInputFile(pdf_bytes, filename="poprobui_report.pdf"),
             caption="📄 Твой профориентационный отчёт · @poprobui_bot",
         )
         await processing.delete()
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("PDF generation failed for tg_user_id=%s test_id=%s", message.from_user.id, test_id)
         await processing.edit_text(
             f"⚠️ Не удалось сгенерировать PDF.\n\nПопробуй ещё раз — нажми кнопку «📊 Результаты» внизу и затем «📨 Получить PDF в Telegram».\n\n<code>{type(e).__name__}: {e}</code>",
             parse_mode="HTML"
@@ -336,7 +338,7 @@ async def handle_web_app_data(message: Message):
 async def cmd_menu(message: Message):
     await message.answer(
         "Меню открыто. Если кнопки пропали, используй /menu или /balance.",
-        reply_markup=kb_main(user_id=message.from_user.id),
+        reply_markup=await kb_main(user_id=message.from_user.id),
     )
 
 
@@ -347,7 +349,7 @@ async def cmd_reset(message: Message):
     # wipe freshly saved results on EVERY reopen after a single /reset.
     await message.answer(
         "Готово. Открой кнопку «🧭 Пройти тест» ниже — мини-апп очистит локальную карту, историю и согласие на этом устройстве.",
-        reply_markup=kb_main(f"reset={int(time.time())}", message.from_user.id),
+        reply_markup=await kb_main(f"reset={int(time.time())}", message.from_user.id),
     )
 
 
@@ -355,7 +357,10 @@ async def cmd_reset(message: Message):
 async def cmd_gift(message: Message):
     if not has_gift_access(message):
         return
-    balance = add_balance(message.from_user.id, 100000)
+    balance = await add_balance(message.from_user.id, 100000)
+    if balance is None:
+        await message.answer("⚠️ Не удалось начислить баланс — сервер недоступен, попробуй ещё раз.")
+        return
     await message.answer(
         f"Баланс пополнен на 1000 ₽.\n"
         f"На счете: <b>{format_money(balance)}</b>.",
@@ -398,7 +403,7 @@ async def cmd_privacy(message: Message):
         "Документы по персональным данным:\n\n"
         f"Согласие: {base_url}/consent.html\n"
         f"Политика: {base_url}/privacy.html",
-        reply_markup=kb_main(user_id=message.from_user.id),
+        reply_markup=await kb_main(user_id=message.from_user.id),
     )
 
 
@@ -427,7 +432,7 @@ async def cmd_balance(message: Message):
 
 
 async def send_balance_menu(message: Message):
-    balance = balance_of(message.from_user.id)
+    balance = await balance_of(message.from_user.id)
     await message.answer(
         "💳 <b>Личный кабинет</b>\n\n"
         f"Баланс: <b>{format_money(balance)}</b>\n\n"
@@ -446,7 +451,7 @@ async def handle_balance(message: Message):
 async def cb_hint_free(call: CallbackQuery):
     await call.message.answer(
         "Открой мини-апп кнопкой «🧭 Пройти тест» внизу чата и выбери нужный тест.",
-        reply_markup=kb_main(user_id=call.from_user.id),
+        reply_markup=await kb_main(user_id=call.from_user.id),
     )
     await call.answer()
 
@@ -457,7 +462,7 @@ async def cb_back_main(call: CallbackQuery):
         await call.message.delete()
     except Exception:
         logger.exception("Failed to delete balance menu message")
-    await call.message.answer("Вернул основное меню.", reply_markup=kb_main(user_id=call.from_user.id))
+    await call.message.answer("Вернул основное меню.", reply_markup=await kb_main(user_id=call.from_user.id))
     await call.answer()
 
 
@@ -465,7 +470,7 @@ async def cb_back_main(call: CallbackQuery):
 async def cb_pay(call: CallbackQuery):
     await call.message.answer(
         "Теперь тесты выбираются в мини-аппе, а списание происходит при старте.",
-        reply_markup=kb_main(user_id=call.from_user.id),
+        reply_markup=await kb_main(user_id=call.from_user.id),
     )
     await call.answer()
 
@@ -507,20 +512,26 @@ async def payment_success(message: Message):
             amount = int(payload.split("_", 1)[1])
         except (IndexError, ValueError):
             amount = message.successful_payment.total_amount
-        balance = add_balance(message.from_user.id, amount)
+        balance = await add_balance(message.from_user.id, amount)
+        if balance is None:
+            await message.answer(
+                "✅ Оплата прошла, но не получилось обновить баланс на сервере.\n"
+                "Напиши в поддержку — зачислим вручную.",
+            )
+            return
         await message.answer(
             "✅ Баланс пополнен.\n\n"
             f"На счете: <b>{format_money(balance)}</b>.\n"
             "Теперь выбери тест в личном кабинете.",
             parse_mode="HTML",
-            reply_markup=kb_main(user_id=message.from_user.id),
+            reply_markup=await kb_main(user_id=message.from_user.id),
         )
         return
 
     test_id = payload.replace("test_", "", 1)
     await message.answer(
         "✅ Оплата прошла! Жми «🧭 Пройти тест» внизу — тест откроется сразу.",
-        reply_markup=kb_main(f"screen=test&tier={test_id}&paid=1", message.from_user.id),
+        reply_markup=await kb_main(f"screen=test&tier={test_id}&paid=1", message.from_user.id),
     )
 
 

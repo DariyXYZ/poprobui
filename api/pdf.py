@@ -1,6 +1,7 @@
 """PDF report generator using reportlab (pure Python, no system deps)."""
 import asyncio
 import os
+from xml.sax.saxutils import escape as _xml_escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -12,15 +13,18 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 from prof_data import get_profile
 
-DATA_DIR = os.getenv("DATA_DIR", os.path.dirname(__file__))
+DATA_DIR = os.getenv("DATA_DIR") or os.path.dirname(__file__)
 OUTPUT_DIR = os.path.join(DATA_DIR, "reports")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Base-14 Helvetica has no Cyrillic glyphs — register a Unicode-capable
-# TTF and fall back to Helvetica only if it's unavailable (e.g. on Linux).
+FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
+
+# Base-14 Helvetica has no Cyrillic glyphs — register a bundled Unicode TTF
+# (DejaVu Sans, redistributable) so this renders correctly on any OS,
+# including the Linux containers this actually deploys to.
 try:
-    pdfmetrics.registerFont(TTFont("PDFSans", r"C:\Windows\Fonts\arial.ttf"))
-    pdfmetrics.registerFont(TTFont("PDFSans-Bold", r"C:\Windows\Fonts\arialbd.ttf"))
+    pdfmetrics.registerFont(TTFont("PDFSans", os.path.join(FONTS_DIR, "DejaVuSans.ttf")))
+    pdfmetrics.registerFont(TTFont("PDFSans-Bold", os.path.join(FONTS_DIR, "DejaVuSans-Bold.ttf")))
     FONT_REGULAR = "PDFSans"
     FONT_BOLD = "PDFSans-Bold"
 except Exception:
@@ -63,7 +67,11 @@ def _generate_pdf_sync(result_id: int, tg_user_id: int, scores: dict, test_id: s
     style_normal = ParagraphStyle("normal", fontSize=11, fontName=FONT_REGULAR,
                                    textColor=TEXT)
 
+    # scores can originate from a client-supplied payload (bot's "generate_pdf"
+    # action) rather than server scoring — escape names before they land in
+    # reportlab's mini-XML markup below, or a crafted label breaks/spoofs the PDF.
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    sorted_scores = [(_xml_escape(str(name)), score) for name, score in sorted_scores]
     max_score = sorted_scores[0][1] if sorted_scores else 1
     top3 = [name for name, _ in sorted_scores[:3]]
 
@@ -91,8 +99,12 @@ def _generate_pdf_sync(result_id: int, tg_user_id: int, scores: dict, test_id: s
     story.append(Paragraph("Результаты профориентационного тестирования", style_sub))
 
     # ── Top 3 cards ─────────────────────────────────────────────────────────
+    # top3 normally has exactly 3 entries (every real test has ≥5 scales), but
+    # a malformed/attacker-supplied scores payload can leave fewer — size the
+    # table to what's actually there instead of hardcoding 3 columns.
     story.append(Paragraph("ТОП-3 НАПРАВЛЕНИЯ", style_label))
     ranks = ["Первое место", "Второе место", "Третье место"]
+    n = len(top3)
     top_data = [[
         Table(
             [[Paragraph(f"<font color='#888888' size='8'>{ranks[i]}</font>", style_normal)],
@@ -102,12 +114,10 @@ def _generate_pdf_sync(result_id: int, tg_user_id: int, scores: dict, test_id: s
             colWidths=[55*mm]
         )
         for i, name in enumerate(top3)
-    ]]
-    top_table = Table(top_data, colWidths=[57*mm, 57*mm, 57*mm], hAlign="LEFT")
+    ]] if n else []
+    top_table = Table(top_data, colWidths=[57*mm] * n, hAlign="LEFT")
     top_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, 0), ACCENT),
-        ("BACKGROUND", (1, 0), (1, 0), BG_CARD),
-        ("BACKGROUND", (2, 0), (2, 0), BG_CARD),
+        *[("BACKGROUND", (i, 0), (i, 0), ACCENT if i == 0 else BG_CARD) for i in range(n)],
         ("ROUNDEDCORNERS", (0, 0), (-1, -1), [8, 8, 8, 8]),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),

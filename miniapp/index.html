@@ -938,12 +938,18 @@ function typeIconName(name) {
   return "target";
 }
 // ── Config ──────────────────────────────────────────────────────────────
-const API_URL = "https://b367ca9ad96ac3.lhr.life";
+// api runs on a local machine, exposed via a tunnel — this MUST be a static/
+// reserved domain (e.g. ngrok free static domain), never a random one-off
+// tunnel URL, or this breaks every time the tunnel restarts.
+const API_URL = "https://bootlace-upcoming-glimmer.ngrok-free.dev";
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const TG_USER_ID = tg?.initDataUnsafe?.user?.id || 0;
+// Raw signed payload — sent with every API call so the server can verify
+// this request really came from Telegram instead of trusting TG_USER_ID as-is.
+const TG_INIT_DATA = tg?.initData || "";
 const CONSENT_VERSION = "2026-07-09";
 const CONSENT_STORAGE_KEY = "poprobui_consent";
 const PRIVACY_URL = "privacy.html";
@@ -989,7 +995,11 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, {
+      ...options,
+      headers: { ...(options.headers || {}), "X-Telegram-Init-Data": TG_INIT_DATA },
+      signal: controller.signal,
+    });
   } finally {
     clearTimeout(timeout);
   }

@@ -2,14 +2,12 @@ import json
 import os
 from filelock import FileLock
 
-
-def _default_balance_path() -> str:
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.dirname(here)
-    return os.path.join(repo_root, "bot", "data", "balances.json")
-
-
-BALANCE_DB_PATH = os.getenv("BALANCE_DB_PATH", _default_balance_path())
+# Wallet state is owned exclusively by the api service — bot and miniapp both
+# go through api's HTTP endpoints instead of touching this file directly.
+# api and bot deploy as separate services/containers (see README), so a path
+# shared across folders would silently desync balances between them.
+DATA_DIR = os.getenv("DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
+BALANCE_DB_PATH = os.getenv("BALANCE_DB_PATH", os.path.join(DATA_DIR, "balances.json"))
 
 
 def format_money(amount: int) -> str:
