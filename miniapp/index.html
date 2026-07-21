@@ -947,9 +947,33 @@ if (tg) { tg.ready(); tg.expand(); }
 
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const TG_USER_ID = tg?.initDataUnsafe?.user?.id || 0;
-// Raw signed payload — sent with every API call so the server can verify
-// this request really came from Telegram instead of trusting TG_USER_ID as-is.
+// Raw signed payload — used only once, to exchange for a session token below.
+// Telegram clients (Desktop especially) are known to cache/truncate initData
+// between mini-app opens, so re-checking it on every request risks a 401 in
+// the middle of the wallet→test→result flow. The exchanged token doesn't have
+// that problem — it's ours, long-lived, and independent of what Telegram's
+// webview does to initData after the first successful launch.
 const TG_INIT_DATA = tg?.initData || "";
+const SESSION_TOKEN_KEY = "poprobui_session_token";
+let sessionToken = localStorage.getItem(SESSION_TOKEN_KEY) || null;
+
+async function exchangeForSessionToken() {
+  if (!TG_INIT_DATA) return null;
+  try {
+    const res = await fetch(`${API_URL}/auth/exchange`, {
+      method: "POST",
+      headers: { "X-Telegram-Init-Data": TG_INIT_DATA },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    sessionToken = data.session_token;
+    localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+    return data;
+  } catch (e) {
+    console.warn("session exchange failed", e);
+    return null;
+  }
+}
 const CONSENT_VERSION = "2026-07-09";
 const CONSENT_STORAGE_KEY = "poprobui_consent";
 const PRIVACY_URL = "privacy.html";
@@ -991,18 +1015,33 @@ async function refreshWalletBalance() {
     console.warn("wallet refresh failed", e);
   }
 }
-async function fetchWithTimeout(url, options = {}, timeoutMs = 4500) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4500, _retried = false) {
+  if (!sessionToken) {
+    await exchangeForSessionToken();
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
   try {
-    return await fetch(url, {
+    const authHeader = sessionToken
+      ? { "X-Session-Token": sessionToken }
+      : { "X-Telegram-Init-Data": TG_INIT_DATA };
+    res = await fetch(url, {
       ...options,
-      headers: { ...(options.headers || {}), "X-Telegram-Init-Data": TG_INIT_DATA },
+      headers: { ...(options.headers || {}), ...authHeader },
       signal: controller.signal,
     });
   } finally {
     clearTimeout(timeout);
   }
+  if (res.status === 401 && !_retried) {
+    sessionToken = null;
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    if (await exchangeForSessionToken()) {
+      return fetchWithTimeout(url, options, timeoutMs, true);
+    }
+  }
+  return res;
 }
 
 function currentConsent() {

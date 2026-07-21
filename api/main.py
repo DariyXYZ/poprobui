@@ -20,8 +20,11 @@ from wallet import balance_of, add_balance, debit_balance
 from telegram_auth import (
     resolve_tg_user_id,
     require_internal,
+    issue_session_token,
+    verify_init_data_and_get_user_id,
     TelegramInitDataHeader,
     InternalTokenHeader,
+    SessionTokenHeader,
 )
 
 app = FastAPI(title="Попробуй API")
@@ -36,7 +39,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-Telegram-Init-Data", "X-Internal-Token"],
+    allow_headers=["Content-Type", "X-Telegram-Init-Data", "X-Internal-Token", "X-Session-Token"],
 )
 
 DATA_DIR = os.getenv("DATA_DIR") or os.path.dirname(__file__)
@@ -152,15 +155,39 @@ async def health():
     return {"status": "ok"}
 
 
+class AuthExchangeResponse(BaseModel):
+    session_token: str
+    tg_user_id: int
+
+
+@app.post("/auth/exchange", response_model=AuthExchangeResponse)
+async def auth_exchange(
+    request: Request,
+    x_telegram_init_data: str | None = TelegramInitDataHeader,
+):
+    # Один раз меняем сырой initData на долгоживущий токен — дальше миниапп шлёт
+    # его вместо initData, так что баг Telegram-клиента с кешем/обрезкой initData
+    # посреди сессии (кошелёк → тест → результат) больше не рвёт флоу на середине.
+    _rate_limit(request, "auth_exchange")
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=401, detail="Missing Telegram auth")
+    try:
+        tg_user_id = verify_init_data_and_get_user_id(x_telegram_init_data)
+    except (ValueError, KeyError, json.JSONDecodeError):
+        raise HTTPException(status_code=401, detail="Invalid Telegram auth")
+    return AuthExchangeResponse(session_token=issue_session_token(tg_user_id), tg_user_id=tg_user_id)
+
+
 @app.get("/wallet/{tg_user_id}")
 async def get_wallet(
     tg_user_id: int,
     request: Request,
     x_telegram_init_data: str | None = TelegramInitDataHeader,
     x_internal_token: str | None = InternalTokenHeader,
+    x_session_token: str | None = SessionTokenHeader,
 ):
     _rate_limit(request, "wallet_read")
-    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token)
+    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token, x_session_token)
     balance = await asyncio.to_thread(balance_of, tg_user_id)
     return {"balance": balance}
 
@@ -171,9 +198,10 @@ async def debit_wallet(
     request: Request,
     x_telegram_init_data: str | None = TelegramInitDataHeader,
     x_internal_token: str | None = InternalTokenHeader,
+    x_session_token: str | None = SessionTokenHeader,
 ):
     _rate_limit(request, "wallet_debit")
-    resolve_tg_user_id(payload.tg_user_id, x_telegram_init_data, x_internal_token)
+    resolve_tg_user_id(payload.tg_user_id, x_telegram_init_data, x_internal_token, x_session_token)
 
     expected_prices = {"yovayshi": 30000, "onett": 50000}
     required = expected_prices.get(payload.test_id)
@@ -209,9 +237,10 @@ async def submit_answers(
     request: Request,
     x_telegram_init_data: str | None = TelegramInitDataHeader,
     x_internal_token: str | None = InternalTokenHeader,
+    x_session_token: str | None = SessionTokenHeader,
 ):
     _rate_limit(request, "submit")
-    resolve_tg_user_id(payload.tg_user_id, x_telegram_init_data, x_internal_token)
+    resolve_tg_user_id(payload.tg_user_id, x_telegram_init_data, x_internal_token, x_session_token)
 
     scores = score_test(payload.test_id, payload.answers)
 
@@ -245,9 +274,10 @@ async def get_results(
     request: Request,
     x_telegram_init_data: str | None = TelegramInitDataHeader,
     x_internal_token: str | None = InternalTokenHeader,
+    x_session_token: str | None = SessionTokenHeader,
 ):
     _rate_limit(request, "results")
-    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token)
+    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token, x_session_token)
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -268,9 +298,10 @@ async def download_pdf(
     request: Request,
     x_telegram_init_data: str | None = TelegramInitDataHeader,
     x_internal_token: str | None = InternalTokenHeader,
+    x_session_token: str | None = SessionTokenHeader,
 ):
     _rate_limit(request, "pdf")
-    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token)
+    resolve_tg_user_id(tg_user_id, x_telegram_init_data, x_internal_token, x_session_token)
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
